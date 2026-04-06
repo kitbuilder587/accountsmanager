@@ -34,26 +34,36 @@ export async function renderReel(reelId: string): Promise<RenderResult> {
   const brandingPath = path.join(getAppPaths().assetsDir, 'branding-plate.png');
 
   const filters: string[] = [];
+  const fontFilter = fs.existsSync(FONT_PATH) ? `:fontfile='${FONT_PATH}'` : '';
 
-  // If we have text region and final text, replace text
-  if (reel.textRegionX !== null && reel.textRegionY !== null &&
-      reel.textRegionW !== null && reel.textRegionH !== null && reel.finalText) {
-    // Draw black box over original text
-    filters.push(
-      `drawbox=x=${reel.textRegionX}:y=${reel.textRegionY}:w=${reel.textRegionW}:h=${reel.textRegionH}:color=black@0.85:t=fill`
-    );
-
-    // Calculate font size based on region height
-    const fontSize = Math.max(16, Math.min(48, Math.round(reel.textRegionH * 0.6)));
-    const textX = reel.textRegionX + 10;
-    const textY = reel.textRegionY + Math.round((reel.textRegionH - fontSize) / 2);
-
+  if (reel.finalText) {
     const escapedText = escapeFFmpegText(reel.finalText);
-    const fontFilter = fs.existsSync(FONT_PATH) ? `:fontfile='${FONT_PATH}'` : '';
+    const hasRegion = reel.textRegionX !== null && reel.textRegionY !== null &&
+      reel.textRegionW !== null && reel.textRegionH !== null;
 
-    filters.push(
-      `drawtext=text='${escapedText}':x=${textX}:y=${textY}:fontsize=${fontSize}:fontcolor=white${fontFilter}`
-    );
+    if (hasRegion) {
+      // OCR found text region — replace in-place
+      filters.push(
+        `drawbox=x=${reel.textRegionX}:y=${reel.textRegionY}:w=${reel.textRegionW}:h=${reel.textRegionH}:color=black@0.85:t=fill`
+      );
+
+      const fontSize = Math.max(16, Math.min(48, Math.round(reel.textRegionH! * 0.6)));
+      const textX = reel.textRegionX! + 10;
+      const textY = reel.textRegionY! + Math.round((reel.textRegionH! - fontSize) / 2);
+
+      filters.push(
+        `drawtext=text='${escapedText}':x=${textX}:y=${textY}:fontsize=${fontSize}:fontcolor=white${fontFilter}`
+      );
+    } else {
+      // No OCR region — draw text centered near bottom with semi-transparent background
+      const fontSize = 36;
+      const boxPadding = 16;
+
+      // Dark semi-transparent box behind text, centered at bottom
+      filters.push(
+        `drawtext=text='${escapedText}':x=(w-text_w)/2:y=h-th-${boxPadding * 4}:fontsize=${fontSize}:fontcolor=white${fontFilter}:box=1:boxcolor=black@0.7:boxborderw=${boxPadding}`
+      );
+    }
   }
 
   // Build FFmpeg command
