@@ -1,5 +1,5 @@
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
-const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const OPENROUTER_URL = process.env.OPENROUTER_URL || 'https://openrouter.ai/api/v1/chat/completions';
 const MODEL = process.env.LLM_MODEL || 'openai/gpt-4.1-mini';
 
 const SYSTEM_PROMPT = `You are a creative copywriter for short video content.
