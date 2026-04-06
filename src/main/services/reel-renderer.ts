@@ -77,8 +77,8 @@ async function createFullFrameOverlay(
     const barW = region ? region.w + 10 : videoWidth;
     const barH = region ? region.h + 10 : Math.round(fontSize * 1.3 + 48);
     const barX = region ? region.x - 5 : 0;
-    // When no OCR region, place text above watermarks area (~350px from bottom)
-    const barY = region ? region.y - 5 : videoHeight - barH - 350;
+    // When no OCR region, place text above watermarks area (~480px from bottom)
+    const barY = region ? region.y - 5 : videoHeight - barH - 480;
 
     // Dark bar background
     ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
@@ -125,7 +125,7 @@ async function createFullFrameOverlay(
   if (fs.existsSync(WATERMARK_LOGO_PATH)) {
     try {
       const logoImg = await loadImage(WATERMARK_LOGO_PATH);
-      const logoW = Math.round(videoWidth * 0.45);
+      const logoW = Math.round(videoWidth * 0.8);
       const logoH = Math.round((logoImg.height / logoImg.width) * logoW);
       const logoX = Math.round((videoWidth - logoW) / 2);
       const logoY = videoHeight - logoH - 10;
@@ -140,7 +140,7 @@ async function createFullFrameOverlay(
   if (fs.existsSync(WATERMARK_BANNER_PATH)) {
     try {
       const bannerImg = await loadImage(WATERMARK_BANNER_PATH);
-      const bannerW = Math.round(videoWidth * 0.7);
+      const bannerW = Math.round(videoWidth * 0.85);
       const bannerH = Math.round((bannerImg.height / bannerImg.width) * bannerW);
       const bannerX = Math.round((videoWidth - bannerW) / 2);
       const bannerY = wmBottomY - bannerH - 5;
