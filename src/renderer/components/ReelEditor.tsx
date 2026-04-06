@@ -12,6 +12,9 @@ interface ReelEditorProps {
 
 export function ReelEditor({ reel, onReelUpdated }: ReelEditorProps) {
   const [editText, setEditText] = useState(reel.finalText || '');
+  const [pubTitle, setPubTitle] = useState(reel.publishTitle || '');
+  const [pubDescription, setPubDescription] = useState(reel.publishDescription || '');
+  const [pubHashtags, setPubHashtags] = useState(reel.publishHashtags || '');
   const [regions, setRegions] = useState<DetectedRegion[]>(reel.detectedRegions || []);
   const [isSaving, setIsSaving] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
@@ -202,6 +205,68 @@ export function ReelEditor({ reel, onReelUpdated }: ReelEditorProps) {
           )}
         </div>
       </div>
+
+      {/* Publish metadata (title, description, hashtags for YouTube/Instagram) */}
+      {(reel.publishTitle || reel.status === 'ready' || reel.status === 'review') && (
+        <div className="editor-preview">
+          <p className="editor-preview__label">Publish Metadata</p>
+          <label className="form-field">
+            <span>Title (YouTube/Instagram)</span>
+            <input
+              type="text"
+              className="reel-url-input"
+              value={pubTitle}
+              onChange={(e) => setPubTitle(e.target.value)}
+              placeholder="Catchy title for the video"
+            />
+          </label>
+          <label className="form-field">
+            <span>Description</span>
+            <textarea
+              className="reel-text-input"
+              rows={3}
+              value={pubDescription}
+              onChange={(e) => setPubDescription(e.target.value)}
+              placeholder="Video description with CTA"
+            />
+          </label>
+          <label className="form-field">
+            <span>Hashtags</span>
+            <input
+              type="text"
+              className="reel-url-input"
+              value={pubHashtags}
+              onChange={(e) => setPubHashtags(e.target.value)}
+              placeholder="#shorts #рилс #видео"
+            />
+          </label>
+          <div className="form-actions">
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={isSaving}
+              onClick={async () => {
+                setIsSaving(true);
+                setError(null);
+                try {
+                  await api.updatePublishMeta(reel.id, {
+                    title: pubTitle,
+                    description: pubDescription,
+                    hashtags: pubHashtags,
+                  });
+                  onReelUpdated();
+                } catch (e) {
+                  setError(e instanceof Error ? e.message : 'Failed to save');
+                } finally {
+                  setIsSaving(false);
+                }
+              }}
+            >
+              {isSaving ? 'Saving...' : 'Save Metadata'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {reel.status === 'error' && (
         <div className="editor-preview" style={{ borderLeft: '3px solid #dc2626' }}>

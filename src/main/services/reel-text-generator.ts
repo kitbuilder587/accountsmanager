@@ -2,17 +2,33 @@ const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
 const OPENROUTER_URL = process.env.OPENROUTER_URL || 'https://openrouter.ai/api/v1/chat/completions';
 const MODEL = process.env.LLM_MODEL || 'openai/gpt-4.1-mini';
 
-const SYSTEM_PROMPT = `You are a creative copywriter for short video content.
-Your task: take the original text from a video reel and create a new, engaging Russian-language version.
+const SYSTEM_PROMPT = `You are a creative copywriter for short video content (Reels/Shorts).
+Given the original text from a video, generate content for repackaging it in Russian.
+
+Return a JSON object with exactly these fields:
+{
+  "overlayText": "Short punchy text for the video overlay (1-2 lines, max 60 chars)",
+  "title": "Catchy YouTube Shorts title in Russian (max 100 chars, SEO-optimized)",
+  "description": "YouTube/Instagram description in Russian (2-3 sentences, include a call to action)",
+  "hashtags": "#хэштег1 #хэштег2 #хэштег3 (5-8 relevant hashtags in Russian)"
+}
 
 Rules:
-- Keep the same general meaning/topic but make it fresh and catchy
-- Write in Russian
-- Keep it short and punchy (suitable for video overlay text)
-- Do not use hashtags
-- Return ONLY the new text, nothing else`;
+- ALL text must be in Russian
+- overlayText: very short, bold, attention-grabbing — this goes ON the video
+- title: optimized for YouTube search, use emotional hooks (цифры, вопросы, "как", "почему")
+- description: informative, include CTA like "Подписывайтесь!" or "Ставьте лайк!"
+- hashtags: mix of broad (#shorts #рилс) and topic-specific tags
+- Return ONLY valid JSON, no markdown, no explanation`;
 
-export async function generateText(originalText: string): Promise<string> {
+export interface GeneratedContent {
+  overlayText: string;
+  title: string;
+  description: string;
+  hashtags: string;
+}
+
+export async function generateContent(originalText: string): Promise<GeneratedContent> {
   if (!OPENROUTER_API_KEY) {
     throw new Error('OPENROUTER_API_KEY not configured');
   }
@@ -27,10 +43,10 @@ export async function generateText(originalText: string): Promise<string> {
       model: MODEL,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: `Original text from video:\n\n${originalText}\n\nCreate a new Russian version:` },
+        { role: 'user', content: `Original text from video:\n\n${originalText}\n\nGenerate Russian content:` },
       ],
-      max_tokens: 200,
-      temperature: 0.8,
+      max_tokens: 500,
+      temperature: 0.7,
     }),
   });
 
@@ -43,10 +59,34 @@ export async function generateText(originalText: string): Promise<string> {
     choices: Array<{ message: { content: string } }>;
   };
 
-  const generated = data.choices?.[0]?.message?.content?.trim();
-  if (!generated) {
+  const content = data.choices?.[0]?.message?.content?.trim();
+  if (!content) {
     throw new Error('OpenRouter returned empty response');
   }
 
-  return generated;
+  try {
+    const jsonStr = content.replace(/^```json?\n?/m, '').replace(/\n?```$/m, '');
+    const parsed = JSON.parse(jsonStr);
+
+    return {
+      overlayText: parsed.overlayText || parsed.overlay_text || content,
+      title: parsed.title || '',
+      description: parsed.description || '',
+      hashtags: parsed.hashtags || '',
+    };
+  } catch {
+    // Fallback: treat entire response as overlay text
+    return {
+      overlayText: content,
+      title: content.slice(0, 100),
+      description: content,
+      hashtags: '#shorts #рилс #видео',
+    };
+  }
+}
+
+// Backward-compatible wrapper
+export async function generateText(originalText: string): Promise<string> {
+  const result = await generateContent(originalText);
+  return result.overlayText;
 }

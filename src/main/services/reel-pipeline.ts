@@ -2,7 +2,7 @@ import { getReelById, updateReelStatus, updateReelError } from './reel-repositor
 import { downloadReel } from './reel-downloader.js';
 import { detectText } from './reel-ocr.js';
 import { classifyRegions } from './reel-region-classifier.js';
-import { generateText } from './reel-text-generator.js';
+import { generateContent } from './reel-text-generator.js';
 import { renderReel } from './reel-renderer.js';
 
 type PipelineStage = 'downloading' | 'ocr' | 'classifying' | 'generating' | 'rendering';
@@ -98,24 +98,19 @@ export async function processReel(reelId: string, startFrom?: string): Promise<v
           const replaceRegions = (currentReel.detectedRegions || []).filter(r => r.action === 'replace');
           const replaceText = replaceRegions.map(r => r.text).join('\n');
 
-          if (currentReel.customText) {
-            updateReelStatus(reelId, 'generating', {
-              finalText: currentReel.customText,
-            });
-          } else if (replaceText) {
+          const sourceText = currentReel.customText || replaceText || currentReel.originalText;
+
+          if (sourceText) {
             updateReelStatus(reelId, 'generating');
-            console.log(`[Pipeline] Generating text for reel ${reelId}...`);
-            const generated = await generateText(replaceText);
+            console.log(`[Pipeline] Generating content for reel ${reelId}...`);
+            const content = await generateContent(sourceText);
+
             updateReelStatus(reelId, 'generating', {
-              generatedText: generated,
-              finalText: generated,
-            });
-          } else if (currentReel.originalText) {
-            updateReelStatus(reelId, 'generating');
-            const generated = await generateText(currentReel.originalText);
-            updateReelStatus(reelId, 'generating', {
-              generatedText: generated,
-              finalText: generated,
+              generatedText: content.overlayText,
+              finalText: currentReel.customText || content.overlayText,
+              publishTitle: content.title,
+              publishDescription: content.description,
+              publishHashtags: content.hashtags,
             });
           } else {
             updateReelStatus(reelId, 'generating', {

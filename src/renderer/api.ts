@@ -67,6 +67,13 @@ export async function updateReelRegions(id: string, regions: DetectedRegion[]): 
   });
 }
 
+export async function updatePublishMeta(id: string, meta: { title?: string; description?: string; hashtags?: string }): Promise<{ reel: Reel }> {
+  return fetchJson(`${BASE_URL}/reels/${id}/publish-meta`, {
+    method: 'PUT',
+    body: JSON.stringify(meta),
+  });
+}
+
 export async function approveReel(id: string): Promise<{ reel: Reel }> {
   return fetchJson(`${BASE_URL}/reels/${id}/approve`, { method: 'POST' });
 }

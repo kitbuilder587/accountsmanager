@@ -55,6 +55,15 @@ try {
   if (!cols.some(c => c.name === 'detected_regions')) {
     sqlite.exec(`ALTER TABLE reels ADD COLUMN detected_regions TEXT`);
   }
+  if (!cols.some(c => c.name === 'publish_title')) {
+    sqlite.exec(`ALTER TABLE reels ADD COLUMN publish_title TEXT`);
+  }
+  if (!cols.some(c => c.name === 'publish_description')) {
+    sqlite.exec(`ALTER TABLE reels ADD COLUMN publish_description TEXT`);
+  }
+  if (!cols.some(c => c.name === 'publish_hashtags')) {
+    sqlite.exec(`ALTER TABLE reels ADD COLUMN publish_hashtags TEXT`);
+  }
 } catch { /* table might not exist yet */ }
 
 export const db = drizzle(sqlite);

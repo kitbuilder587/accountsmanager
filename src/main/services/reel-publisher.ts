@@ -193,16 +193,20 @@ export async function publishReel(
       publishedPlatform: platform,
     });
 
-    const title = reel.finalText || 'New video';
-    const description = `${title}\n\n#shorts #reels`;
+    const title = reel.publishTitle || reel.finalText || 'New video';
+    const hashtags = reel.publishHashtags || '#shorts #рилс';
+    const description = reel.publishDescription
+      ? `${reel.publishDescription}\n\n${hashtags}`
+      : `${title}\n\n${hashtags}`;
 
     console.log(`[Publisher] Publishing reel ${reelId} to ${platform}...`);
+    console.log(`[Publisher] Title: ${title}`);
 
     if (platform === 'youtube') {
       const cookiePath = getCookiePath(profileId, 'youtube');
       await uploadToYouTube(reel.processedVideo, title, description, cookiePath);
     } else {
-      const caption = `${title}\n\n#reels #viral`;
+      const caption = `${reel.publishDescription || title}\n\n${hashtags}`;
       await uploadToInstagram(reel.processedVideo, caption, profileId);
     }
 

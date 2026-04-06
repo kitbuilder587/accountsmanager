@@ -80,6 +80,22 @@ router.put('/:id/regions', (req, res) => {
   res.json({ reel: getReelById(reel.id) });
 });
 
+router.put('/:id/publish-meta', (req, res) => {
+  const reel = getReelById(req.params.id);
+  if (!reel) {
+    res.status(404).json({ error: 'Reel not found' });
+    return;
+  }
+
+  const { title, description, hashtags } = req.body;
+  updateReelStatus(reel.id, reel.status as any, {
+    publishTitle: title ?? reel.publishTitle,
+    publishDescription: description ?? reel.publishDescription,
+    publishHashtags: hashtags ?? reel.publishHashtags,
+  });
+  res.json({ reel: getReelById(reel.id) });
+});
+
 router.post('/:id/approve', (req, res) => {
   const reel = getReelById(req.params.id);
   if (!reel) {
