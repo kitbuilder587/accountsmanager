@@ -18,13 +18,11 @@ interface VideoInfo {
   height: number;
 }
 
-function escapeXml(text: string): string {
+function escapePangoMarkup(text: string): string {
   return text
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
+    .replace(/>/g, '&gt;');
 }
 
 async function getVideoInfo(videoPath: string): Promise<VideoInfo> {
@@ -64,66 +62,63 @@ async function createTextOverlay(
   fs.mkdirSync(tmpDir, { recursive: true });
   const pngPath = path.join(tmpDir, `text-${Date.now()}.png`);
 
-  const escaped = escapeXml(text);
+  const escaped = escapePangoMarkup(text);
 
   if (options.position === 'region' && options.regionW && options.regionH) {
-    // Text fits inside the detected OCR region
     const w = options.regionW;
     const h = options.regionH;
     const fontSize = Math.max(14, Math.min(42, Math.round(h * 0.5)));
 
-    const svg = `<svg width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg">
-  <rect width="100%" height="100%" fill="rgba(0,0,0,0.85)" rx="4"/>
-  <text x="50%" y="55%" text-anchor="middle" dominant-baseline="middle"
-        fill="white" font-size="${fontSize}" font-family="sans-serif">${escaped}</text>
-</svg>`;
+    // Render text with sharp's built-in Pango text support
+    const textImg = await sharp({
+      text: {
+        text: `<span foreground="white" font_desc="Sans Bold ${fontSize}">${escaped}</span>`,
+        rgba: true,
+        width: w - 20,
+        align: 'centre',
+      },
+    }).png().toBuffer();
 
-    await sharp(Buffer.from(svg)).png().toFile(pngPath);
+    // Create dark background and composite text on top
+    await sharp({
+      create: { width: w, height: h, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 217 } },
+    })
+      .composite([{ input: textImg, gravity: 'centre' }])
+      .png()
+      .toFile(pngPath);
+
     return { pngPath, overlayWidth: w, overlayHeight: h };
   }
 
-  // Center-bottom: full-width bar at bottom
-  const padding = 20;
+  // Center-bottom: full-width text bar
   const fontSize = Math.max(20, Math.min(40, Math.round(videoWidth * 0.045)));
-  const barHeight = fontSize + padding * 2 + 10;
   const barWidth = videoWidth;
+  const textWidth = barWidth - 60;
 
-  // Wrap long text into multiple lines
-  const maxCharsPerLine = Math.floor(barWidth / (fontSize * 0.55));
-  const lines = wrapText(text, maxCharsPerLine);
-  const lineHeight = fontSize * 1.3;
-  const totalTextHeight = lines.length * lineHeight;
-  const finalBarHeight = Math.round(totalTextHeight + padding * 2 + 10);
+  // Render text first to measure its height
+  const textImg = await sharp({
+    text: {
+      text: `<span foreground="white" font_desc="Sans Bold ${fontSize}">${escaped}</span>`,
+      rgba: true,
+      width: textWidth,
+      align: 'centre',
+    },
+  }).png().toBuffer();
 
-  const textElements = lines.map((line, i) => {
-    const y = padding + fontSize + i * lineHeight;
-    return `<text x="50%" y="${y}" text-anchor="middle" fill="white" font-size="${fontSize}" font-family="sans-serif">${escapeXml(line)}</text>`;
-  }).join('\n  ');
+  const textMeta = await sharp(textImg).metadata();
+  const textHeight = textMeta.height || fontSize + 10;
+  const padding = 24;
+  const finalBarHeight = textHeight + padding * 2;
 
-  const svg = `<svg width="${barWidth}" height="${finalBarHeight}" xmlns="http://www.w3.org/2000/svg">
-  <rect width="100%" height="100%" fill="rgba(0,0,0,0.7)" rx="8"/>
-  ${textElements}
-</svg>`;
+  // Create dark semi-transparent background and composite text
+  await sharp({
+    create: { width: barWidth, height: finalBarHeight, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 178 } },
+  })
+    .composite([{ input: textImg, gravity: 'centre' }])
+    .png()
+    .toFile(pngPath);
 
-  await sharp(Buffer.from(svg)).png().toFile(pngPath);
   return { pngPath, overlayWidth: barWidth, overlayHeight: finalBarHeight };
-}
-
-function wrapText(text: string, maxChars: number): string[] {
-  const words = text.split(/\s+/);
-  const lines: string[] = [];
-  let current = '';
-
-  for (const word of words) {
-    if (current.length + word.length + 1 > maxChars && current.length > 0) {
-      lines.push(current);
-      current = word;
-    } else {
-      current = current ? current + ' ' + word : word;
-    }
-  }
-  if (current) lines.push(current);
-  return lines.length > 0 ? lines : [''];
 }
 
 export async function renderReel(reelId: string): Promise<RenderResult> {
