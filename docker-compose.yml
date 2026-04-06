@@ -1,0 +1,29 @@
+services:
+  app:
+    build: .
+    ports:
+      - "3001:3001"
+    volumes:
+      - app-data:/data
+    environment:
+      - ACCOUNTS_MANAGER_APP_DATA_ROOT=/data
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - PADDLEOCR_URL=http://paddleocr:8866
+      - LLM_MODEL=${LLM_MODEL:-openai/gpt-4.1-mini}
+      - FONT_PATH=/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf
+    depends_on:
+      - paddleocr
+    restart: unless-stopped
+
+  paddleocr:
+    build:
+      context: ./paddleocr-api
+      dockerfile: Dockerfile
+    ports:
+      - "8866:8866"
+    platform: linux/amd64
+    restart: unless-stopped
+
+volumes:
+  app-data:

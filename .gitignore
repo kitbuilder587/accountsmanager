@@ -1,3 +1,5 @@
 node_modules/
 dist/
 VIDS/
+.env
+.accountsmanager-dev/
