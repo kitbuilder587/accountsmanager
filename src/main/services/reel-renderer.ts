@@ -46,57 +46,28 @@ async function getVideoInfo(videoPath: string): Promise<VideoInfo> {
  * Generate a transparent PNG with text using sharp + SVG.
  * Works on any platform without system font dependencies.
  */
-async function createTextOverlay(
+/**
+ * Creates a full-frame transparent PNG overlay with text composited at the right position.
+ * Using a full-frame overlay with overlay=0:0 is the most reliable approach across all ffmpeg builds.
+ */
+async function createFullFrameOverlay(
   text: string,
   videoWidth: number,
   videoHeight: number,
-  options: {
-    position: 'center-bottom' | 'region';
-    regionX?: number;
-    regionY?: number;
-    regionW?: number;
-    regionH?: number;
-  },
-): Promise<{ pngPath: string; overlayWidth: number; overlayHeight: number }> {
+  region: { x: number; y: number; w: number; h: number } | null,
+): Promise<string> {
   const tmpDir = path.join(getAppPaths().reelsDir, '_tmp');
   fs.mkdirSync(tmpDir, { recursive: true });
   const pngPath = path.join(tmpDir, `text-${Date.now()}.png`);
 
   const escaped = escapePangoMarkup(text);
+  const fontSize = region
+    ? Math.max(14, Math.min(42, Math.round(region.h * 0.5)))
+    : Math.max(20, Math.min(40, Math.round(videoWidth * 0.045)));
+  const textWidth = region ? region.w - 20 : videoWidth - 60;
 
-  if (options.position === 'region' && options.regionW && options.regionH) {
-    const w = options.regionW;
-    const h = options.regionH;
-    const fontSize = Math.max(14, Math.min(42, Math.round(h * 0.5)));
-
-    // Render text with sharp's built-in Pango text support
-    const textImg = await sharp({
-      text: {
-        text: `<span foreground="white" font_desc="Sans Bold ${fontSize}">${escaped}</span>`,
-        rgba: true,
-        width: w - 20,
-        align: 'centre',
-      },
-    }).png().toBuffer();
-
-    // Create dark background and composite text on top
-    await sharp({
-      create: { width: w, height: h, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 217 } },
-    })
-      .composite([{ input: textImg, gravity: 'centre' }])
-      .png()
-      .toFile(pngPath);
-
-    return { pngPath, overlayWidth: w, overlayHeight: h };
-  }
-
-  // Center-bottom: full-width text bar
-  const fontSize = Math.max(20, Math.min(40, Math.round(videoWidth * 0.045)));
-  const barWidth = videoWidth;
-  const textWidth = barWidth - 60;
-
-  // Render text first to measure its height
-  const textImg = await sharp({
+  // Render text using sharp's Pango engine
+  const textBuf = await sharp({
     text: {
       text: `<span foreground="white" font_desc="Sans Bold ${fontSize}">${escaped}</span>`,
       rgba: true,
@@ -105,20 +76,34 @@ async function createTextOverlay(
     },
   }).png().toBuffer();
 
-  const textMeta = await sharp(textImg).metadata();
-  const textHeight = textMeta.height || fontSize + 10;
-  const padding = 24;
-  const finalBarHeight = textHeight + padding * 2;
+  const textMeta = await sharp(textBuf).metadata();
+  const textH = textMeta.height || fontSize + 10;
 
-  // Create dark semi-transparent background and composite text
-  await sharp({
-    create: { width: barWidth, height: finalBarHeight, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 178 } },
+  // Create the bar (dark background + text)
+  const barW = region ? region.w : videoWidth;
+  const barH = region ? region.h : textH + 48;
+
+  const bar = await sharp({
+    create: { width: barW, height: barH, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 180 } },
   })
-    .composite([{ input: textImg, gravity: 'centre' }])
+    .composite([{ input: textBuf, gravity: 'centre' }])
+    .png()
+    .toBuffer();
+
+  // Create full-frame transparent image and place the bar
+  const barX = region ? region.x : 0;
+  const barY = region ? region.y : videoHeight - barH - 40;
+
+  const fullFrame = await sharp({
+    create: { width: videoWidth, height: videoHeight, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
+  }).png().toBuffer();
+
+  await sharp(fullFrame)
+    .composite([{ input: bar, left: barX, top: barY }])
     .png()
     .toFile(pngPath);
 
-  return { pngPath, overlayWidth: barWidth, overlayHeight: finalBarHeight };
+  return pngPath;
 }
 
 export async function renderReel(reelId: string): Promise<RenderResult> {
@@ -131,67 +116,48 @@ export async function renderReel(reelId: string): Promise<RenderResult> {
   const brandingPath = path.join(getAppPaths().assetsDir, 'branding-plate.png');
 
   const videoInfo = await getVideoInfo(reel.originalVideo);
-  const overlayInputs: string[] = [];
-  const filterParts: string[] = [];
-  let inputIndex = 1; // 0 is the video
+  const overlayFiles: string[] = [];
 
   const ffmpegArgs: string[] = ['-i', reel.originalVideo];
+  const filterSteps: string[] = [];
+  let currentLabel = '0:v';
+  let inputIdx = 1;
 
   // Text overlay
   if (reel.finalText) {
     const hasRegion = reel.textRegionX !== null && reel.textRegionY !== null &&
       reel.textRegionW !== null && reel.textRegionH !== null;
 
-    const overlay = await createTextOverlay(
+    const overlayPath = await createFullFrameOverlay(
       reel.finalText,
       videoInfo.width,
       videoInfo.height,
       hasRegion
-        ? {
-            position: 'region',
-            regionX: reel.textRegionX!,
-            regionY: reel.textRegionY!,
-            regionW: reel.textRegionW!,
-            regionH: reel.textRegionH!,
-          }
-        : { position: 'center-bottom' },
+        ? { x: reel.textRegionX!, y: reel.textRegionY!, w: reel.textRegionW!, h: reel.textRegionH! }
+        : null,
     );
 
-    ffmpegArgs.push('-i', overlay.pngPath);
-    overlayInputs.push(overlay.pngPath);
-
-    if (hasRegion) {
-      // Overlay text PNG at exact OCR region position
-      filterParts.push(`[${inputIndex}:v]scale=${reel.textRegionW}:${reel.textRegionH}[txt${inputIndex}]`);
-      filterParts.push(`[base][txt${inputIndex}]overlay=${reel.textRegionX}:${reel.textRegionY}[base]`);
-    } else {
-      // Overlay text bar at bottom center
-      const yPos = videoInfo.height - overlay.overlayHeight - 40;
-      filterParts.push(`[base][${inputIndex}:v]overlay=0:${yPos}[base]`);
-    }
-    inputIndex++;
+    ffmpegArgs.push('-i', overlayPath);
+    overlayFiles.push(overlayPath);
+    filterSteps.push(`[${currentLabel}][${inputIdx}:v]overlay=0:0:format=auto[v${inputIdx}]`);
+    currentLabel = `v${inputIdx}`;
+    inputIdx++;
   }
 
   // Branding overlay
   if (fs.existsSync(brandingPath)) {
     ffmpegArgs.push('-i', brandingPath);
-    const brandScale = Math.round(videoInfo.width * 0.15);
-    filterParts.push(`[${inputIndex}:v]scale=${brandScale}:-1[brand]`);
-    filterParts.push(`[base][brand]overlay=W-w-20:H-h-20[base]`);
-    inputIndex++;
+    filterSteps.push(`[${inputIdx}:v]scale=${Math.round(videoInfo.width * 0.15)}:-1[brand]`);
+    filterSteps.push(`[${currentLabel}][brand]overlay=W-w-20:H-h-20[v${inputIdx}]`);
+    currentLabel = `v${inputIdx}`;
+    inputIdx++;
   }
 
-  // Build filter_complex
-  if (filterParts.length > 0) {
-    // Initialize [base] from input video
-    const initFilter = `[0:v]copy[base]`;
-    // Last filter should output without label
-    const allFilters = [initFilter, ...filterParts];
-    // Remove [base] label from the last output
-    const lastIdx = allFilters.length - 1;
-    allFilters[lastIdx] = allFilters[lastIdx].replace(/\[base\]$/, '');
-
-    ffmpegArgs.push('-filter_complex', allFilters.join(';'));
+  if (filterSteps.length > 0) {
+    // Remove output label from last step (becomes default output)
+    const lastIdx = filterSteps.length - 1;
+    filterSteps[lastIdx] = filterSteps[lastIdx].replace(/\[v\d+\]$/, '');
+    ffmpegArgs.push('-filter_complex', filterSteps.join(';'));
     ffmpegArgs.push('-map', '0:a?');
   }
 
@@ -199,8 +165,8 @@ export async function renderReel(reelId: string): Promise<RenderResult> {
     '-c:v', 'libx264',
     '-preset', 'fast',
     '-crf', '23',
-    '-c:a', 'aac',
-    '-b:a', '128k',
+    '-pix_fmt', 'yuv420p',
+    '-c:a', 'copy',
     '-movflags', '+faststart',
     '-y',
     outputPath,
@@ -209,8 +175,7 @@ export async function renderReel(reelId: string): Promise<RenderResult> {
   try {
     await execFileAsync('ffmpeg', ffmpegArgs, { timeout: 300_000 });
   } finally {
-    // Clean up temp overlay PNGs
-    for (const f of overlayInputs) {
+    for (const f of overlayFiles) {
       try { fs.unlinkSync(f); } catch { /* ignore */ }
     }
   }
