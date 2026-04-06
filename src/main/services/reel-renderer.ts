@@ -153,7 +153,6 @@ export async function renderReel(reelId: string): Promise<RenderResult> {
     const lastIdx = filterSteps.length - 1;
     filterSteps[lastIdx] = filterSteps[lastIdx].replace(/\[v\d+\]$/, '');
     ffmpegArgs.push('-filter_complex', filterSteps.join(';'));
-    ffmpegArgs.push('-map', '0:a?');
   }
 
   ffmpegArgs.push(
