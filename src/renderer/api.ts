@@ -1,5 +1,5 @@
 import type { ManagedProfile, CreateManagedProfileInput, UpdateManagedProfileInput } from '../shared/profile.js';
-import type { Reel, CreateReelInput, PublishReelInput } from '../shared/reel.js';
+import type { Reel, CreateReelInput, PublishReelInput, DetectedRegion } from '../shared/reel.js';
 
 const BASE_URL = '/api';
 
@@ -58,6 +58,17 @@ export async function updateReelText(id: string, text: string): Promise<{ reel: 
     method: 'PUT',
     body: JSON.stringify({ text }),
   });
+}
+
+export async function updateReelRegions(id: string, regions: DetectedRegion[]): Promise<{ reel: Reel }> {
+  return fetchJson(`${BASE_URL}/reels/${id}/regions`, {
+    method: 'PUT',
+    body: JSON.stringify({ regions }),
+  });
+}
+
+export async function approveReel(id: string): Promise<{ reel: Reel }> {
+  return fetchJson(`${BASE_URL}/reels/${id}/approve`, { method: 'POST' });
 }
 
 export async function rerenderReel(id: string): Promise<{ reel: Reel }> {

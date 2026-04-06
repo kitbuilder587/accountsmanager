@@ -15,6 +15,7 @@ export const reelsTable = sqliteTable('reels', {
   textRegionY: integer('text_region_y'),
   textRegionW: integer('text_region_w'),
   textRegionH: integer('text_region_h'),
+  detectedRegions: text('detected_regions'),
   originalVideo: text('original_video'),
   processedVideo: text('processed_video'),
   thumbnail: text('thumbnail'),

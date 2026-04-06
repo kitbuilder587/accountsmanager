@@ -3,6 +3,7 @@ import { promisify } from 'node:util';
 import path from 'node:path';
 import fs from 'node:fs';
 import { createCanvas, loadImage } from '@napi-rs/canvas';
+import type { DetectedRegion } from '../../shared/reel.js';
 import { getReelById, getReelDirectory } from './reel-repository.js';
 import { getAppPaths } from './app-paths.js';
 
@@ -39,15 +40,15 @@ async function getVideoInfo(videoPath: string): Promise<VideoInfo> {
 
 /**
  * Creates a full-frame transparent PNG overlay with:
- * 1. Black rect over original text region (masking)
- * 2. New text on dark bar
- * 3. CheapGPT.ru watermark in bottom-right
+ * 1. Black rects over "mask" regions (hide foreign brands)
+ * 2. Black rect + new text over "replace" region (replace main text)
+ * 3. Watermarks at bottom
  */
 async function createFullFrameOverlay(
-  text: string | null,
+  finalText: string | null,
   videoWidth: number,
   videoHeight: number,
-  region: { x: number; y: number; w: number; h: number } | null,
+  regions: DetectedRegion[],
 ): Promise<string> {
   const tmpDir = path.join(getAppPaths().reelsDir, '_tmp');
   fs.mkdirSync(tmpDir, { recursive: true });
@@ -56,45 +57,89 @@ async function createFullFrameOverlay(
   const canvas = createCanvas(videoWidth, videoHeight);
   const ctx = canvas.getContext('2d');
 
-  // 1. Mask original text: draw opaque black rect over OCR region
-  if (region) {
+  // 1. Mask regions: draw opaque black rects
+  const maskRegions = regions.filter(r => r.action === 'mask' && r.w > 0);
+  for (const region of maskRegions) {
     const pad = 5;
     ctx.fillStyle = 'rgba(0, 0, 0, 0.95)';
-    ctx.fillRect(
-      region.x - pad,
-      region.y - pad,
-      region.w + pad * 2,
-      region.h + pad * 2,
-    );
+    ctx.fillRect(region.x - pad, region.y - pad, region.w + pad * 2, region.h + pad * 2);
   }
 
-  // 2. Draw new text bar
-  if (text) {
-    const fontSize = region
-      ? Math.max(14, Math.min(42, Math.round(region.h * 0.5)))
-      : Math.max(20, Math.min(40, Math.round(videoWidth * 0.045)));
+  // 2. Replace region: mask original + draw new text
+  const replaceRegions = regions.filter(r => r.action === 'replace' && r.w > 0);
 
-    const barW = region ? region.w + 10 : videoWidth;
-    const barH = region ? region.h + 10 : Math.round(fontSize * 1.3 + 48);
-    const barX = region ? region.x - 5 : 0;
-    // When no OCR region, place text above watermarks area (~480px from bottom)
-    const barY = region ? region.y - 5 : videoHeight - barH - 480;
+  if (replaceRegions.length > 0) {
+    // Calculate combined bbox of all replace regions
+    let minX = Infinity, minY = Infinity, maxX = 0, maxY = 0;
+    for (const r of replaceRegions) {
+      minX = Math.min(minX, r.x);
+      minY = Math.min(minY, r.y);
+      maxX = Math.max(maxX, r.x + r.w);
+      maxY = Math.max(maxY, r.y + r.h);
+    }
 
-    // Dark bar background
+    const pad = 8;
+    const regionX = Math.max(0, minX - pad);
+    const regionY = Math.max(0, minY - pad);
+    const regionW = maxX - minX + pad * 2;
+    const regionH = maxY - minY + pad * 2;
+
+    // Mask original text
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.95)';
+    ctx.fillRect(regionX, regionY, regionW, regionH);
+
+    // Draw new text in the replace region
+    if (finalText) {
+      const fontSize = Math.max(16, Math.min(48, Math.round(regionH * 0.4)));
+      ctx.fillStyle = 'white';
+      ctx.font = `bold ${fontSize}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      const maxWidth = regionW - 20;
+      const words = finalText.split(/\s+/);
+      const lines: string[] = [];
+      let current = '';
+      for (const word of words) {
+        const test = current ? current + ' ' + word : word;
+        if (ctx.measureText(test).width > maxWidth && current) {
+          lines.push(current);
+          current = word;
+        } else {
+          current = test;
+        }
+      }
+      if (current) lines.push(current);
+
+      const lineHeight = fontSize * 1.3;
+      const totalHeight = lines.length * lineHeight;
+      const startY = regionY + (regionH - totalHeight) / 2 + fontSize * 0.65;
+      const centerX = regionX + regionW / 2;
+
+      for (let i = 0; i < lines.length; i++) {
+        ctx.fillText(lines[i], centerX, startY + i * lineHeight);
+      }
+    }
+  } else if (finalText) {
+    // No replace region — place text above watermarks
+    const fontSize = Math.max(20, Math.min(40, Math.round(videoWidth * 0.045)));
+    const barW = videoWidth;
+    const barH = Math.round(fontSize * 1.3 + 48);
+    const barX = 0;
+    const barY = videoHeight - barH - 480;
+
     ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
     ctx.beginPath();
     ctx.roundRect(barX, barY, barW, barH, 8);
     ctx.fill();
 
-    // White text
     ctx.fillStyle = 'white';
     ctx.font = `bold ${fontSize}px sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    // Word-wrap
     const maxWidth = barW - 40;
-    const words = text.split(/\s+/);
+    const words = finalText.split(/\s+/);
     const lines: string[] = [];
     let current = '';
     for (const word of words) {
@@ -111,17 +156,15 @@ async function createFullFrameOverlay(
     const lineHeight = fontSize * 1.3;
     const totalHeight = lines.length * lineHeight;
     const startY = barY + (barH - totalHeight) / 2 + fontSize * 0.65;
-    const centerX = barX + barW / 2;
 
     for (let i = 0; i < lines.length; i++) {
-      ctx.fillText(lines[i], centerX, startY + i * lineHeight);
+      ctx.fillText(lines[i], barW / 2, startY + i * lineHeight);
     }
   }
 
-  // 3. Draw watermarks at bottom (logo + banner stacked)
-  let wmBottomY = videoHeight; // tracks where the next watermark goes (from bottom up)
+  // 3. Draw watermarks at bottom
+  let wmBottomY = videoHeight;
 
-  // CheapGPT.ru logo — at very bottom, centered
   if (fs.existsSync(WATERMARK_LOGO_PATH)) {
     try {
       const logoImg = await loadImage(WATERMARK_LOGO_PATH);
@@ -136,7 +179,6 @@ async function createFullFrameOverlay(
     }
   }
 
-  // Banner "OpenAI API в 3 раза дешевле" — above logo
   if (fs.existsSync(WATERMARK_BANNER_PATH)) {
     try {
       const bannerImg = await loadImage(WATERMARK_BANNER_PATH);
@@ -163,17 +205,13 @@ export async function renderReel(reelId: string): Promise<RenderResult> {
   const outputPath = path.join(reelDir, 'processed.mp4');
 
   const videoInfo = await getVideoInfo(reel.originalVideo);
-
-  const hasRegion = reel.textRegionX !== null && reel.textRegionY !== null &&
-    reel.textRegionW !== null && reel.textRegionH !== null;
+  const regions = reel.detectedRegions || [];
 
   const overlayPath = await createFullFrameOverlay(
     reel.finalText,
     videoInfo.width,
     videoInfo.height,
-    hasRegion
-      ? { x: reel.textRegionX!, y: reel.textRegionY!, w: reel.textRegionW!, h: reel.textRegionH! }
-      : null,
+    regions,
   );
 
   const ffmpegArgs: string[] = [
@@ -191,7 +229,6 @@ export async function renderReel(reelId: string): Promise<RenderResult> {
   ];
 
   console.log(`[Renderer] ffmpeg ${ffmpegArgs.join(' ')}`);
-  console.log(`[Renderer] Overlay: ${overlayPath} (${fs.statSync(overlayPath).size} bytes)`);
 
   try {
     await execFileAsync('ffmpeg', ffmpegArgs, { timeout: 300_000 });

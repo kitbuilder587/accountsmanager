@@ -33,6 +33,7 @@ sqlite.exec(`
     text_region_y INTEGER,
     text_region_w INTEGER,
     text_region_h INTEGER,
+    detected_regions TEXT,
     original_video TEXT,
     processed_video TEXT,
     thumbnail TEXT,
@@ -47,6 +48,14 @@ sqlite.exec(`
     updated_at TEXT NOT NULL
   );
 `);
+
+// Migration: add detected_regions column if missing
+try {
+  const cols = sqlite.pragma('table_info(reels)') as Array<{ name: string }>;
+  if (!cols.some(c => c.name === 'detected_regions')) {
+    sqlite.exec(`ALTER TABLE reels ADD COLUMN detected_regions TEXT`);
+  }
+} catch { /* table might not exist yet */ }
 
 export const db = drizzle(sqlite);
 export { sqlite };
