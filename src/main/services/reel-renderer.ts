@@ -2,26 +2,128 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import path from 'node:path';
 import fs from 'node:fs';
+import sharp from 'sharp';
 
 import { getReelById, getReelDirectory } from './reel-repository.js';
 import { getAppPaths } from './app-paths.js';
 
 const execFileAsync = promisify(execFile);
 
-const FONT_PATH = process.env.FONT_PATH || '/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf';
-
 interface RenderResult {
   videoPath: string;
 }
 
-function escapeFFmpegText(text: string): string {
+interface VideoInfo {
+  width: number;
+  height: number;
+}
+
+function escapeXml(text: string): string {
   return text
-    .replace(/\\/g, '\\\\')
-    .replace(/'/g, "\\'")
-    .replace(/:/g, '\\:')
-    .replace(/\[/g, '\\[')
-    .replace(/\]/g, '\\]')
-    .replace(/;/g, '\\;');
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
+async function getVideoInfo(videoPath: string): Promise<VideoInfo> {
+  const { stdout } = await execFileAsync('ffprobe', [
+    '-v', 'error',
+    '-select_streams', 'v:0',
+    '-show_entries', 'stream=width,height',
+    '-of', 'json',
+    videoPath,
+  ], { timeout: 15_000 });
+
+  const data = JSON.parse(stdout);
+  const stream = data.streams?.[0];
+  return {
+    width: stream?.width || 720,
+    height: stream?.height || 1280,
+  };
+}
+
+/**
+ * Generate a transparent PNG with text using sharp + SVG.
+ * Works on any platform without system font dependencies.
+ */
+async function createTextOverlay(
+  text: string,
+  videoWidth: number,
+  videoHeight: number,
+  options: {
+    position: 'center-bottom' | 'region';
+    regionX?: number;
+    regionY?: number;
+    regionW?: number;
+    regionH?: number;
+  },
+): Promise<{ pngPath: string; overlayWidth: number; overlayHeight: number }> {
+  const tmpDir = path.join(getAppPaths().reelsDir, '_tmp');
+  fs.mkdirSync(tmpDir, { recursive: true });
+  const pngPath = path.join(tmpDir, `text-${Date.now()}.png`);
+
+  const escaped = escapeXml(text);
+
+  if (options.position === 'region' && options.regionW && options.regionH) {
+    // Text fits inside the detected OCR region
+    const w = options.regionW;
+    const h = options.regionH;
+    const fontSize = Math.max(14, Math.min(42, Math.round(h * 0.5)));
+
+    const svg = `<svg width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg">
+  <rect width="100%" height="100%" fill="rgba(0,0,0,0.85)" rx="4"/>
+  <text x="50%" y="55%" text-anchor="middle" dominant-baseline="middle"
+        fill="white" font-size="${fontSize}" font-family="sans-serif">${escaped}</text>
+</svg>`;
+
+    await sharp(Buffer.from(svg)).png().toFile(pngPath);
+    return { pngPath, overlayWidth: w, overlayHeight: h };
+  }
+
+  // Center-bottom: full-width bar at bottom
+  const padding = 20;
+  const fontSize = Math.max(20, Math.min(40, Math.round(videoWidth * 0.045)));
+  const barHeight = fontSize + padding * 2 + 10;
+  const barWidth = videoWidth;
+
+  // Wrap long text into multiple lines
+  const maxCharsPerLine = Math.floor(barWidth / (fontSize * 0.55));
+  const lines = wrapText(text, maxCharsPerLine);
+  const lineHeight = fontSize * 1.3;
+  const totalTextHeight = lines.length * lineHeight;
+  const finalBarHeight = Math.round(totalTextHeight + padding * 2 + 10);
+
+  const textElements = lines.map((line, i) => {
+    const y = padding + fontSize + i * lineHeight;
+    return `<text x="50%" y="${y}" text-anchor="middle" fill="white" font-size="${fontSize}" font-family="sans-serif">${escapeXml(line)}</text>`;
+  }).join('\n  ');
+
+  const svg = `<svg width="${barWidth}" height="${finalBarHeight}" xmlns="http://www.w3.org/2000/svg">
+  <rect width="100%" height="100%" fill="rgba(0,0,0,0.7)" rx="8"/>
+  ${textElements}
+</svg>`;
+
+  await sharp(Buffer.from(svg)).png().toFile(pngPath);
+  return { pngPath, overlayWidth: barWidth, overlayHeight: finalBarHeight };
+}
+
+function wrapText(text: string, maxChars: number): string[] {
+  const words = text.split(/\s+/);
+  const lines: string[] = [];
+  let current = '';
+
+  for (const word of words) {
+    if (current.length + word.length + 1 > maxChars && current.length > 0) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = current ? current + ' ' + word : word;
+    }
+  }
+  if (current) lines.push(current);
+  return lines.length > 0 ? lines : [''];
 }
 
 export async function renderReel(reelId: string): Promise<RenderResult> {
@@ -33,53 +135,69 @@ export async function renderReel(reelId: string): Promise<RenderResult> {
   const outputPath = path.join(reelDir, 'processed.mp4');
   const brandingPath = path.join(getAppPaths().assetsDir, 'branding-plate.png');
 
-  const filters: string[] = [];
-  const fontFilter = fs.existsSync(FONT_PATH) ? `:fontfile='${FONT_PATH}'` : '';
+  const videoInfo = await getVideoInfo(reel.originalVideo);
+  const overlayInputs: string[] = [];
+  const filterParts: string[] = [];
+  let inputIndex = 1; // 0 is the video
 
+  const ffmpegArgs: string[] = ['-i', reel.originalVideo];
+
+  // Text overlay
   if (reel.finalText) {
-    const escapedText = escapeFFmpegText(reel.finalText);
     const hasRegion = reel.textRegionX !== null && reel.textRegionY !== null &&
       reel.textRegionW !== null && reel.textRegionH !== null;
 
+    const overlay = await createTextOverlay(
+      reel.finalText,
+      videoInfo.width,
+      videoInfo.height,
+      hasRegion
+        ? {
+            position: 'region',
+            regionX: reel.textRegionX!,
+            regionY: reel.textRegionY!,
+            regionW: reel.textRegionW!,
+            regionH: reel.textRegionH!,
+          }
+        : { position: 'center-bottom' },
+    );
+
+    ffmpegArgs.push('-i', overlay.pngPath);
+    overlayInputs.push(overlay.pngPath);
+
     if (hasRegion) {
-      // OCR found text region — replace in-place
-      filters.push(
-        `drawbox=x=${reel.textRegionX}:y=${reel.textRegionY}:w=${reel.textRegionW}:h=${reel.textRegionH}:color=black@0.85:t=fill`
-      );
-
-      const fontSize = Math.max(16, Math.min(48, Math.round(reel.textRegionH! * 0.6)));
-      const textX = reel.textRegionX! + 10;
-      const textY = reel.textRegionY! + Math.round((reel.textRegionH! - fontSize) / 2);
-
-      filters.push(
-        `drawtext=text='${escapedText}':x=${textX}:y=${textY}:fontsize=${fontSize}:fontcolor=white${fontFilter}`
-      );
+      // Overlay text PNG at exact OCR region position
+      filterParts.push(`[${inputIndex}:v]scale=${reel.textRegionW}:${reel.textRegionH}[txt${inputIndex}]`);
+      filterParts.push(`[base][txt${inputIndex}]overlay=${reel.textRegionX}:${reel.textRegionY}[base]`);
     } else {
-      // No OCR region — draw text centered near bottom with semi-transparent background
-      const fontSize = 36;
-      const boxPadding = 16;
-
-      // Dark semi-transparent box behind text, centered at bottom
-      filters.push(
-        `drawtext=text='${escapedText}':x=(w-text_w)/2:y=h-th-${boxPadding * 4}:fontsize=${fontSize}:fontcolor=white${fontFilter}:box=1:boxcolor=black@0.7:boxborderw=${boxPadding}`
-      );
+      // Overlay text bar at bottom center
+      const yPos = videoInfo.height - overlay.overlayHeight - 40;
+      filterParts.push(`[base][${inputIndex}:v]overlay=0:${yPos}[base]`);
     }
+    inputIndex++;
   }
 
-  // Build FFmpeg command
-  const ffmpegArgs: string[] = ['-i', reel.originalVideo];
-
-  // Add branding overlay if the asset exists
+  // Branding overlay
   if (fs.existsSync(brandingPath)) {
     ffmpegArgs.push('-i', brandingPath);
+    const brandScale = Math.round(videoInfo.width * 0.15);
+    filterParts.push(`[${inputIndex}:v]scale=${brandScale}:-1[brand]`);
+    filterParts.push(`[base][brand]overlay=W-w-20:H-h-20[base]`);
+    inputIndex++;
+  }
 
-    // Complex filter: apply text replacement, then overlay branding at bottom-right
-    const textFilter = filters.length > 0 ? filters.join(',') + ',' : '';
-    const complexFilter = `[0:v]${textFilter}scale=iw:ih[base];[1:v]scale=iw*0.15:-1[brand];[base][brand]overlay=W-w-20:H-h-20`;
-    ffmpegArgs.push('-filter_complex', complexFilter);
-  } else if (filters.length > 0) {
-    // Simple video filter without branding overlay
-    ffmpegArgs.push('-vf', filters.join(','));
+  // Build filter_complex
+  if (filterParts.length > 0) {
+    // Initialize [base] from input video
+    const initFilter = `[0:v]copy[base]`;
+    // Last filter should output without label
+    const allFilters = [initFilter, ...filterParts];
+    // Remove [base] label from the last output
+    const lastIdx = allFilters.length - 1;
+    allFilters[lastIdx] = allFilters[lastIdx].replace(/\[base\]$/, '');
+
+    ffmpegArgs.push('-filter_complex', allFilters.join(';'));
+    ffmpegArgs.push('-map', '0:a?');
   }
 
   ffmpegArgs.push(
@@ -93,7 +211,14 @@ export async function renderReel(reelId: string): Promise<RenderResult> {
     outputPath,
   );
 
-  await execFileAsync('ffmpeg', ffmpegArgs, { timeout: 300_000 });
+  try {
+    await execFileAsync('ffmpeg', ffmpegArgs, { timeout: 300_000 });
+  } finally {
+    // Clean up temp overlay PNGs
+    for (const f of overlayInputs) {
+      try { fs.unlinkSync(f); } catch { /* ignore */ }
+    }
+  }
 
   if (!fs.existsSync(outputPath)) {
     throw new Error('FFmpeg did not produce output file');
