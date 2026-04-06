@@ -3,3 +3,5 @@ dist/
 VIDS/
 .env
 .accountsmanager-dev/
+.accountsmanager-data/
+.debug-render/
