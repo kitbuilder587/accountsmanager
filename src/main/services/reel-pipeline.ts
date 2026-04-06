@@ -4,9 +4,9 @@ import { detectText } from './reel-ocr.js';
 import { generateText } from './reel-text-generator.js';
 import { renderReel } from './reel-renderer.js';
 
-type PipelineStage = 'pending' | 'downloading' | 'ocr' | 'generating' | 'rendering';
+type PipelineStage = 'downloading' | 'ocr' | 'generating' | 'rendering';
 
-const STAGE_ORDER: PipelineStage[] = ['pending', 'downloading', 'ocr', 'generating', 'rendering'];
+const STAGE_ORDER: PipelineStage[] = ['downloading', 'ocr', 'generating', 'rendering'];
 
 export async function processReel(reelId: string, startFrom?: string): Promise<void> {
   const reel = getReelById(reelId);
@@ -15,8 +15,9 @@ export async function processReel(reelId: string, startFrom?: string): Promise<v
     return;
   }
 
-  const startIndex = startFrom
-    ? STAGE_ORDER.indexOf(startFrom as PipelineStage)
+  const mappedStart = startFrom === 'pending' ? 'downloading' : startFrom;
+  const startIndex = mappedStart
+    ? STAGE_ORDER.indexOf(mappedStart as PipelineStage)
     : 0;
 
   const stages = STAGE_ORDER.slice(Math.max(0, startIndex));
@@ -24,7 +25,6 @@ export async function processReel(reelId: string, startFrom?: string): Promise<v
   for (const stage of stages) {
     try {
       switch (stage) {
-        case 'pending':
         case 'downloading': {
           updateReelStatus(reelId, 'downloading');
           console.log(`[Pipeline] Downloading reel ${reelId}...`);
