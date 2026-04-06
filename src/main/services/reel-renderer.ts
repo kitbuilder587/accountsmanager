@@ -3,8 +3,6 @@ import { promisify } from 'node:util';
 import path from 'node:path';
 import fs from 'node:fs';
 import { createCanvas } from '@napi-rs/canvas';
-import sharp from 'sharp';
-
 import { getReelById, getReelDirectory } from './reel-repository.js';
 import { getAppPaths } from './app-paths.js';
 
@@ -37,70 +35,15 @@ async function getVideoInfo(videoPath: string): Promise<VideoInfo> {
 }
 
 /**
- * Render text onto a canvas bar. Uses @napi-rs/canvas (Skia engine)
- * which bundles its own fonts — works on macOS, Linux, Windows without
- * any system font dependencies.
+ * Creates a full-frame transparent PNG overlay entirely via canvas (Skia).
+ * No sharp compositing — avoids alpha channel incompatibilities across platforms.
  */
-function renderTextBar(
-  text: string,
-  barWidth: number,
-  barHeight: number,
-  fontSize: number,
-): Buffer {
-  const canvas = createCanvas(barWidth, barHeight);
-  const ctx = canvas.getContext('2d');
-
-  // Dark semi-transparent background
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-  ctx.beginPath();
-  ctx.roundRect(0, 0, barWidth, barHeight, 8);
-  ctx.fill();
-
-  // White bold text, centered
-  ctx.fillStyle = 'white';
-  ctx.font = `bold ${fontSize}px sans-serif`;
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-
-  // Word-wrap if text is too wide
-  const maxWidth = barWidth - 40;
-  const words = text.split(/\s+/);
-  const lines: string[] = [];
-  let current = '';
-
-  for (const word of words) {
-    const test = current ? current + ' ' + word : word;
-    if (ctx.measureText(test).width > maxWidth && current) {
-      lines.push(current);
-      current = word;
-    } else {
-      current = test;
-    }
-  }
-  if (current) lines.push(current);
-
-  const lineHeight = fontSize * 1.3;
-  const totalHeight = lines.length * lineHeight;
-  const startY = (barHeight - totalHeight) / 2 + fontSize * 0.65;
-
-  for (let i = 0; i < lines.length; i++) {
-    ctx.fillText(lines[i], barWidth / 2, startY + i * lineHeight);
-  }
-
-  return Buffer.from(canvas.toBuffer('image/png'));
-}
-
-/**
- * Creates a full-frame transparent PNG overlay with the text bar composited
- * at the correct position. Full-frame overlay + overlay=0:0 is the most
- * reliable approach across all ffmpeg versions and platforms.
- */
-async function createFullFrameOverlay(
+function createFullFrameOverlay(
   text: string,
   videoWidth: number,
   videoHeight: number,
   region: { x: number; y: number; w: number; h: number } | null,
-): Promise<string> {
+): string {
   const tmpDir = path.join(getAppPaths().reelsDir, '_tmp');
   fs.mkdirSync(tmpDir, { recursive: true });
   const pngPath = path.join(tmpDir, `text-${Date.now()}.png`);
@@ -114,19 +57,48 @@ async function createFullFrameOverlay(
   const barX = region ? region.x : 0;
   const barY = region ? region.y : videoHeight - barH - 40;
 
-  // Render text bar using canvas (Skia — works on all platforms)
-  const barPng = renderTextBar(text, barW, barH, fontSize);
+  // Create full-frame canvas and draw everything in one pass
+  const canvas = createCanvas(videoWidth, videoHeight);
+  const ctx = canvas.getContext('2d');
 
-  // Create full-frame transparent image and place bar at position
-  const fullFrame = await sharp({
-    create: { width: videoWidth, height: videoHeight, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } },
-  }).png().toBuffer();
+  // Dark bar background
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+  ctx.beginPath();
+  ctx.roundRect(barX, barY, barW, barH, 8);
+  ctx.fill();
 
-  await sharp(fullFrame)
-    .composite([{ input: barPng, left: barX, top: barY }])
-    .png()
-    .toFile(pngPath);
+  // White text
+  ctx.fillStyle = 'white';
+  ctx.font = `bold ${fontSize}px sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
 
+  // Word-wrap
+  const maxWidth = barW - 40;
+  const words = text.split(/\s+/);
+  const lines: string[] = [];
+  let current = '';
+  for (const word of words) {
+    const test = current ? current + ' ' + word : word;
+    if (ctx.measureText(test).width > maxWidth && current) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = test;
+    }
+  }
+  if (current) lines.push(current);
+
+  const lineHeight = fontSize * 1.3;
+  const totalHeight = lines.length * lineHeight;
+  const startY = barY + (barH - totalHeight) / 2 + fontSize * 0.65;
+  const centerX = barX + barW / 2;
+
+  for (let i = 0; i < lines.length; i++) {
+    ctx.fillText(lines[i], centerX, startY + i * lineHeight);
+  }
+
+  fs.writeFileSync(pngPath, Buffer.from(canvas.toBuffer('image/png')));
   return pngPath;
 }
 
@@ -152,7 +124,7 @@ export async function renderReel(reelId: string): Promise<RenderResult> {
     const hasRegion = reel.textRegionX !== null && reel.textRegionY !== null &&
       reel.textRegionW !== null && reel.textRegionH !== null;
 
-    const overlayPath = await createFullFrameOverlay(
+    const overlayPath = createFullFrameOverlay(
       reel.finalText,
       videoInfo.width,
       videoInfo.height,
@@ -195,11 +167,18 @@ export async function renderReel(reelId: string): Promise<RenderResult> {
     outputPath,
   );
 
+  console.log(`[Renderer] ffmpeg ${ffmpegArgs.join(' ')}`);
+  for (const f of overlayFiles) {
+    const size = fs.existsSync(f) ? fs.statSync(f).size : 0;
+    console.log(`[Renderer] Overlay: ${f} (${size} bytes)`);
+  }
+
   try {
     await execFileAsync('ffmpeg', ffmpegArgs, { timeout: 300_000 });
   } finally {
+    // Keep overlay for debugging — user can inspect it
     for (const f of overlayFiles) {
-      try { fs.unlinkSync(f); } catch { /* ignore */ }
+      console.log(`[Renderer] Overlay saved for inspection: ${f}`);
     }
   }
 
