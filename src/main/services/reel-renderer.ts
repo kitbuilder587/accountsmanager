@@ -133,18 +133,18 @@ export async function renderReel(reelId: string): Promise<RenderResult> {
         : null,
     );
 
-    ffmpegArgs.push('-i', overlayPath);
+    ffmpegArgs.push('-loop', '1', '-i', overlayPath);
     overlayFiles.push(overlayPath);
-    filterSteps.push(`[${currentLabel}][${inputIdx}:v]overlay=0:0:format=auto[v${inputIdx}]`);
+    filterSteps.push(`[${currentLabel}][${inputIdx}:v]overlay=0:0:shortest=1[v${inputIdx}]`);
     currentLabel = `v${inputIdx}`;
     inputIdx++;
   }
 
   // Branding overlay
   if (fs.existsSync(brandingPath)) {
-    ffmpegArgs.push('-i', brandingPath);
+    ffmpegArgs.push('-loop', '1', '-i', brandingPath);
     filterSteps.push(`[${inputIdx}:v]scale=${Math.round(videoInfo.width * 0.15)}:-1[brand]`);
-    filterSteps.push(`[${currentLabel}][brand]overlay=W-w-20:H-h-20[v${inputIdx}]`);
+    filterSteps.push(`[${currentLabel}][brand]overlay=W-w-20:H-h-20:shortest=1[v${inputIdx}]`);
     currentLabel = `v${inputIdx}`;
     inputIdx++;
   }
