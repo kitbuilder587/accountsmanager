@@ -15,6 +15,7 @@ import {
   deleteReel,
 } from '../services/reel-repository.js';
 import { enqueueReel } from '../services/processing-queue.js';
+import { publishReel } from '../services/reel-publisher.js';
 
 const router = Router();
 
@@ -127,12 +128,13 @@ router.post('/:id/publish', (req, res) => {
     return;
   }
 
-  updateReelStatus(reel.id, 'publishing', {
-    publishedProfileId: parsed.data.profileId,
-    publishedPlatform: parsed.data.platform,
-  });
+  // Start publishing asynchronously
+  res.json({ reel: getReelById(reel.id), message: 'Publishing started' });
 
-  res.json({ reel: getReelById(reel.id) });
+  // Run publisher in background (don't await in request handler)
+  publishReel(reel.id, parsed.data.profileId, parsed.data.platform).catch((err) => {
+    console.error(`[Route] Publish failed for reel ${reel.id}:`, err);
+  });
 });
 
 router.post('/:id/retry', (req, res) => {
