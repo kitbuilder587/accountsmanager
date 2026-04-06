@@ -278,6 +278,169 @@ button {
   }
 }
 
+/* Navigation tabs */
+.nav-tabs {
+  display: flex;
+  gap: 4px;
+  margin-top: 16px;
+  padding: 4px;
+  border-radius: 12px;
+  background: #e6ebf2;
+  width: fit-content;
+}
+
+.nav-tab {
+  padding: 8px 20px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #4b5563;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.nav-tab--active {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.nav-tab:hover:not(.nav-tab--active) {
+  background: rgba(37, 99, 235, 0.08);
+}
+
+/* Status badge */
+.status-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Status filter */
+.status-filter {
+  padding: 8px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #f5f7fa;
+  font: inherit;
+  font-size: 14px;
+  color: #111827;
+  cursor: pointer;
+}
+
+/* Reels sidebar */
+.reels-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.add-reel-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+}
+
+.reel-url-input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #f5f7fa;
+  font: inherit;
+  font-size: 14px;
+  color: #111827;
+}
+
+.reel-url-label {
+  font-size: 14px !important;
+  word-break: break-all;
+}
+
+.reel-text-input {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid #cbd5e1;
+  border-radius: 16px;
+  background: #f5f7fa;
+  color: inherit;
+  font: inherit;
+  resize: vertical;
+}
+
+/* Video player */
+.video-player {
+  width: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.video-player__video {
+  display: block;
+  width: 100%;
+  max-height: 400px;
+  background: #000;
+}
+
+/* Dialog overlay */
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: #ffffff;
+  padding: 32px;
+  border-radius: 24px;
+  max-width: 480px;
+  width: 90%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.dialog h3 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.dialog p {
+  margin: 0;
+  color: #4b5563;
+}
+
+.dialog select {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 12px;
+  background: #f5f7fa;
+  font: inherit;
+  font-size: 14px;
+  color: #111827;
+}
+
+/* Danger button */
+.danger-button {
+  color: #dc2626 !important;
+}
+
+.danger-button:hover {
+  background: #fef2f2 !important;
+}
+
 @media (max-width: 640px) {
   .app-shell {
     padding: 16px;

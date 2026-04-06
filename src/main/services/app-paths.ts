@@ -10,6 +10,8 @@ export interface AppPaths {
   dbDir: string;
   profilesDir: string;
   databaseFile: string;
+  reelsDir: string;
+  assetsDir: string;
 }
 
 let cachedAppPaths: AppPaths | null = null;
@@ -38,15 +40,21 @@ export function getAppPaths(): AppPaths {
   const dbDir = path.join(rootDir, 'db');
   const profilesDir = path.join(rootDir, 'profiles');
   const databaseFile = path.join(dbDir, 'accounts-manager.sqlite');
+  const reelsDir = path.join(rootDir, 'reels');
+  const assetsDir = path.join(rootDir, 'assets');
 
   ensureDirectory(dbDir);
   ensureDirectory(profilesDir);
+  ensureDirectory(reelsDir);
+  ensureDirectory(assetsDir);
 
   cachedAppPaths = {
     rootDir,
     dbDir,
     profilesDir,
     databaseFile,
+    reelsDir,
+    assetsDir,
   };
 
   return cachedAppPaths;
