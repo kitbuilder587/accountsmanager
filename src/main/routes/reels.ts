@@ -1,8 +1,10 @@
 import { Router } from 'express';
 
+import type { ReelStatus } from '../../shared/reel.js';
 import {
   createReelInputSchema,
   updateReelTextSchema,
+  updateRegionsSchema,
   publishReelInputSchema,
 } from '../../shared/reel.js';
 import {
@@ -14,6 +16,7 @@ import {
   deleteReel,
 } from '../services/reel-repository.js';
 import { enqueueReel } from '../services/processing-queue.js';
+import { publishReel } from '../services/reel-publisher.js';
 
 const router = Router();
 
@@ -59,6 +62,59 @@ router.put('/:id/text', (req, res) => {
   res.json({ reel });
 });
 
+router.put('/:id/regions', (req, res) => {
+  const parsed = updateRegionsSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Invalid input', details: parsed.error.issues });
+    return;
+  }
+
+  const reel = getReelById(req.params.id);
+  if (!reel) {
+    res.status(404).json({ error: 'Reel not found' });
+    return;
+  }
+
+  updateReelStatus(reel.id, reel.status as ReelStatus, {
+    detectedRegions: JSON.stringify(parsed.data.regions),
+  });
+  res.json({ reel: getReelById(reel.id) });
+});
+
+router.put('/:id/publish-meta', (req, res) => {
+  const reel = getReelById(req.params.id);
+  if (!reel) {
+    res.status(404).json({ error: 'Reel not found' });
+    return;
+  }
+
+  const { title, description, hashtags } = req.body;
+  updateReelStatus(reel.id, reel.status as ReelStatus, {
+    publishTitle: title ?? reel.publishTitle,
+    publishDescription: description ?? reel.publishDescription,
+    publishHashtags: hashtags ?? reel.publishHashtags,
+  });
+  res.json({ reel: getReelById(reel.id) });
+});
+
+router.post('/:id/approve', (req, res) => {
+  const reel = getReelById(req.params.id);
+  if (!reel) {
+    res.status(404).json({ error: 'Reel not found' });
+    return;
+  }
+
+  if (reel.status !== 'review') {
+    res.status(400).json({ error: 'Reel is not in review state' });
+    return;
+  }
+
+  // Resume pipeline from generating stage
+  updateReelStatus(reel.id, 'generating');
+  enqueueReel(reel.id, 'generating');
+  res.json({ reel: getReelById(reel.id) });
+});
+
 router.post('/:id/rerender', (req, res) => {
   const reel = getReelById(req.params.id);
   if (!reel) {
@@ -89,12 +145,13 @@ router.post('/:id/publish', (req, res) => {
     return;
   }
 
-  updateReelStatus(reel.id, 'publishing', {
-    publishedProfileId: parsed.data.profileId,
-    publishedPlatform: parsed.data.platform,
-  });
+  // Start publishing asynchronously
+  res.json({ reel: getReelById(reel.id), message: 'Publishing started' });
 
-  res.json({ reel: getReelById(reel.id) });
+  // Run publisher in background (don't await in request handler)
+  publishReel(reel.id, parsed.data.profileId, parsed.data.platform).catch((err) => {
+    console.error(`[Route] Publish failed for reel ${reel.id}:`, err);
+  });
 });
 
 router.post('/:id/retry', (req, res) => {
@@ -110,7 +167,7 @@ router.post('/:id/retry', (req, res) => {
   }
 
   const retryFrom = reel.errorStage || 'pending';
-  updateReelStatus(reel.id, retryFrom as any, {
+  updateReelStatus(reel.id, retryFrom as ReelStatus, {
     errorMessage: null,
     errorStage: null,
   });

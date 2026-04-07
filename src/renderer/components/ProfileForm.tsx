@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 
 import type {
-  CreateManagedProfileInput,
   ManagedProfilePlatform,
 } from '../../shared/profile.js';
 
@@ -9,6 +8,7 @@ interface ProfileFormValues {
   platform: ManagedProfilePlatform;
   accountLabel: string;
   note: string | null;
+  proxy: string | null;
 }
 
 interface ProfileFormProps {
@@ -34,6 +34,11 @@ const PLATFORM_OPTIONS: Array<{ value: ManagedProfilePlatform; label: string }> 
 
 function normalizeNote(note: string): string | null {
   const value = note.trim();
+  return value ? value : null;
+}
+
+function normalizeProxy(proxy: string): string | null {
+  const value = proxy.trim();
   return value ? value : null;
 }
 
@@ -64,12 +69,14 @@ export function ProfileForm({
   const [platform, setPlatform] = useState<ManagedProfilePlatform>(initialValues.platform);
   const [accountLabel, setAccountLabel] = useState(initialValues.accountLabel);
   const [note, setNote] = useState(initialValues.note ?? '');
+  const [proxy, setProxy] = useState(initialValues.proxy ?? '');
   const [errors, setErrors] = useState<FormErrors>({});
 
   useEffect(() => {
     setPlatform(initialValues.platform);
     setAccountLabel(initialValues.accountLabel);
     setNote(initialValues.note ?? '');
+    setProxy(initialValues.proxy ?? '');
     setErrors({});
   }, [initialValues]);
 
@@ -80,6 +87,7 @@ export function ProfileForm({
       platform,
       accountLabel,
       note: normalizeNote(note),
+      proxy: normalizeProxy(proxy),
     };
     const nextErrors = validate(nextValues);
 
@@ -141,10 +149,21 @@ export function ProfileForm({
         </label>
 
         <label className="form-field">
+          <span>Proxy</span>
+          <input
+            type="text"
+            name="proxy"
+            value={proxy}
+            onChange={(event) => setProxy(event.target.value)}
+            placeholder="socks5://user:pass@host:port or http://host:port"
+          />
+        </label>
+
+        <label className="form-field">
           <span>Note</span>
           <textarea
             name="note"
-            rows={4}
+            rows={3}
             value={note}
             onChange={(event) => setNote(event.target.value)}
             placeholder="Optional context for this profile"
@@ -155,7 +174,7 @@ export function ProfileForm({
 
         <div className="form-actions">
           <button type="submit" className="primary-button" disabled={isSaving}>
-            {isSaving ? 'Saving…' : submitLabel}
+            {isSaving ? 'Saving...' : submitLabel}
           </button>
         </div>
       </form>

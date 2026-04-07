@@ -2,26 +2,21 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import path from 'node:path';
 import fs from 'node:fs';
+import { randomUUID } from 'node:crypto';
 
+import type { DetectedRegion } from '../../shared/reel.js';
 import { getReelById, getReelDirectory } from './reel-repository.js';
 
 const execFileAsync = promisify(execFile);
 
 const PADDLEOCR_URL = process.env.PADDLEOCR_URL || 'http://localhost:8866';
 
-interface TextRegion {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
+export interface OcrResult {
+  regions: DetectedRegion[];
+  framePath: string;
 }
 
-interface OcrResult {
-  text: string | null;
-  region: TextRegion | null;
-}
-
-async function extractMiddleFrame(reelId: string): Promise<string> {
+export async function extractMiddleFrame(reelId: string): Promise<string> {
   const reel = getReelById(reelId);
   if (!reel?.originalVideo) throw new Error('No original video');
 
@@ -31,7 +26,6 @@ async function extractMiddleFrame(reelId: string): Promise<string> {
 
   const framePath = path.join(framesDir, 'mid_frame.png');
 
-  // Get video duration
   const { stdout: durationStr } = await execFileAsync('ffprobe', [
     '-v', 'error',
     '-show_entries', 'format=duration',
@@ -42,7 +36,6 @@ async function extractMiddleFrame(reelId: string): Promise<string> {
   const duration = parseFloat(durationStr.trim()) || 5;
   const midTime = Math.min(duration / 2, 3);
 
-  // Extract frame at midpoint
   await execFileAsync('ffmpeg', [
     '-i', reel.originalVideo,
     '-ss', String(midTime),
@@ -54,7 +47,7 @@ async function extractMiddleFrame(reelId: string): Promise<string> {
   return framePath;
 }
 
-async function callPaddleOcr(imagePath: string): Promise<OcrResult> {
+async function callPaddleOcr(imagePath: string): Promise<DetectedRegion[]> {
   const imageBuffer = fs.readFileSync(imagePath);
   const base64Image = imageBuffer.toString('base64');
 
@@ -77,71 +70,69 @@ async function callPaddleOcr(imagePath: string): Promise<OcrResult> {
   };
 
   if (!data.results || data.results.length === 0) {
-    return { text: null, region: null };
+    return [];
   }
 
-  // Combine all detected text regions
-  const texts: string[] = [];
-  let minX = Infinity, minY = Infinity, maxX = 0, maxY = 0;
+  const regions: DetectedRegion[] = [];
+  const padding = 8;
 
   for (const result of data.results) {
     if (result.confidence < 0.5) continue;
-    texts.push(result.text);
 
+    let minX = Infinity, minY = Infinity, maxX = 0, maxY = 0;
     for (const point of result.bbox) {
       minX = Math.min(minX, point[0]);
       minY = Math.min(minY, point[1]);
       maxX = Math.max(maxX, point[0]);
       maxY = Math.max(maxY, point[1]);
     }
+
+    regions.push({
+      id: randomUUID().slice(0, 8),
+      x: Math.max(0, Math.round(minX) - padding),
+      y: Math.max(0, Math.round(minY) - padding),
+      w: Math.round(maxX - minX) + padding * 2,
+      h: Math.round(maxY - minY) + padding * 2,
+      text: result.text,
+      confidence: Math.round(result.confidence * 100) / 100,
+      action: 'mask', // default — LLM classifier will refine
+    });
   }
 
-  if (texts.length === 0) {
-    return { text: null, region: null };
-  }
-
-  // Add padding to the region
-  const padding = 10;
-  const region: TextRegion = {
-    x: Math.max(0, Math.round(minX) - padding),
-    y: Math.max(0, Math.round(minY) - padding),
-    w: Math.round(maxX - minX) + padding * 2,
-    h: Math.round(maxY - minY) + padding * 2,
-  };
-
-  return {
-    text: texts.join('\n'),
-    region,
-  };
-}
-
-async function callTesseractFallback(imagePath: string): Promise<OcrResult> {
-  // Fallback: use tesseract CLI if available
-  try {
-    const { stdout } = await execFileAsync('tesseract', [
-      imagePath, 'stdout', '-l', 'eng+rus',
-    ], { timeout: 30_000 });
-
-    const text = stdout.trim();
-    return { text: text || null, region: null };
-  } catch {
-    return { text: null, region: null };
-  }
+  return regions;
 }
 
 export async function detectText(reelId: string): Promise<OcrResult> {
   const framePath = await extractMiddleFrame(reelId);
 
   try {
-    return await callPaddleOcr(framePath);
+    const regions = await callPaddleOcr(framePath);
+    const allText = regions.map(r => r.text).join('\n');
+    return { regions, framePath };
   } catch (error) {
     console.warn(`[OCR] PaddleOCR unavailable, falling back to Tesseract:`, error);
-    return await callTesseractFallback(framePath);
-  } finally {
-    // Clean up frames directory
-    const framesDir = path.dirname(framePath);
+
+    // Tesseract fallback — text only, no coordinates
     try {
-      fs.rmSync(framesDir, { recursive: true, force: true });
+      const { stdout } = await execFileAsync('tesseract', [
+        framePath, 'stdout', '-l', 'eng+rus',
+      ], { timeout: 30_000 });
+
+      const text = stdout.trim();
+      if (text) {
+        return {
+          regions: [{
+            id: randomUUID().slice(0, 8),
+            x: 0, y: 0, w: 0, h: 0,
+            text,
+            confidence: 0.5,
+            action: 'keep', // no bbox = can't mask
+          }],
+          framePath,
+        };
+      }
     } catch { /* ignore */ }
+
+    return { regions: [], framePath };
   }
 }

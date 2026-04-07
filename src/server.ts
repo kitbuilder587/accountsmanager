@@ -3,8 +3,10 @@ import cors from 'cors';
 import path from 'node:path';
 
 import { getAppPaths } from './main/services/app-paths.js';
+import { authRouter, authMiddleware } from './main/middleware/auth.js';
 import { profilesRouter } from './main/routes/profiles.js';
 import { reelsRouter } from './main/routes/reels.js';
+import { publishJobsRouter } from './main/routes/publish-jobs.js';
 import { startTelegramBot } from './main/services/telegram-bot.js';
 
 const app = express();
@@ -13,14 +15,18 @@ const PORT = parseInt(process.env.PORT || '3001', 10);
 app.use(cors());
 app.use(express.json());
 
-// API routes
-app.use('/api/profiles', profilesRouter);
-app.use('/api/reels', reelsRouter);
+// Auth routes (not protected)
+app.use('/api/auth', authRouter);
 
-// Serve reel media files
-app.use('/media/reels', express.static(getAppPaths().reelsDir));
+// Protected API routes
+app.use('/api/profiles', authMiddleware, profilesRouter);
+app.use('/api/reels', authMiddleware, reelsRouter);
+app.use('/api/publish-jobs', authMiddleware, publishJobsRouter);
 
-// Serve frontend in production
+// Protected media files
+app.use('/media/reels', authMiddleware, express.static(getAppPaths().reelsDir));
+
+// Serve frontend (not protected — login page needs to load)
 const rendererDir = path.resolve('dist/renderer');
 app.use(express.static(rendererDir));
 app.get('/{*path}', (_req, res) => {

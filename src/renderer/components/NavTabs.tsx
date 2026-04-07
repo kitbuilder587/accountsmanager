@@ -1,25 +1,31 @@
+type TabId = 'accounts' | 'pipeline' | 'ready' | 'published' | 'settings';
+
 interface NavTabsProps {
-  activeTab: 'profiles' | 'reels';
-  onTabChange: (tab: 'profiles' | 'reels') => void;
+  activeTab: TabId;
+  onTabChange: (tab: TabId) => void;
 }
+
+const TABS: Array<{ id: TabId; label: string }> = [
+  { id: 'accounts', label: 'Accounts' },
+  { id: 'pipeline', label: 'Pipeline' },
+  { id: 'ready', label: 'Ready' },
+  { id: 'published', label: 'Published' },
+  { id: 'settings', label: 'Settings' },
+];
 
 export function NavTabs({ activeTab, onTabChange }: NavTabsProps) {
   return (
     <nav className="nav-tabs">
-      <button
-        type="button"
-        className={`nav-tab ${activeTab === 'profiles' ? 'nav-tab--active' : ''}`}
-        onClick={() => onTabChange('profiles')}
-      >
-        Profiles
-      </button>
-      <button
-        type="button"
-        className={`nav-tab ${activeTab === 'reels' ? 'nav-tab--active' : ''}`}
-        onClick={() => onTabChange('reels')}
-      >
-        Reels
-      </button>
+      {TABS.map(tab => (
+        <button
+          key={tab.id}
+          type="button"
+          className={`nav-tab ${activeTab === tab.id ? 'nav-tab--active' : ''}`}
+          onClick={() => onTabChange(tab.id)}
+        >
+          {tab.label}
+        </button>
+      ))}
     </nav>
   );
 }

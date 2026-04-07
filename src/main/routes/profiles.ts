@@ -6,8 +6,10 @@ import {
 } from '../../shared/profile.js';
 import {
   listProfiles,
+  getProfileById,
   createProfile,
   updateProfile,
+  deleteProfile,
 } from '../services/profile-repository.js';
 
 const router = Router();
@@ -15,6 +17,15 @@ const router = Router();
 router.get('/', (_req, res) => {
   const profiles = listProfiles();
   res.json({ profiles });
+});
+
+router.get('/:id', (req, res) => {
+  const profile = getProfileById(req.params.id);
+  if (!profile) {
+    res.status(404).json({ error: 'Profile not found' });
+    return;
+  }
+  res.json({ profile });
 });
 
 router.post('/', (req, res) => {
@@ -44,6 +55,15 @@ router.put('/:id', (req, res) => {
   } catch (error) {
     res.status(404).json({ error: 'Profile not found' });
   }
+});
+
+router.delete('/:id', (req, res) => {
+  const deleted = deleteProfile(req.params.id);
+  if (!deleted) {
+    res.status(404).json({ error: 'Profile not found' });
+    return;
+  }
+  res.json({ success: true });
 });
 
 export { router as profilesRouter };

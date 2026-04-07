@@ -10,6 +10,11 @@ import { db } from '../db/client.js';
 import { reelsTable, type ReelRow } from '../db/reels-schema.js';
 import { getAppPaths } from './app-paths.js';
 
+function parseDetectedRegions(raw: string | null): any[] | null {
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { return null; }
+}
+
 function normalizeReelRow(row: ReelRow): Reel {
   return reelSchema.parse({
     id: row.id,
@@ -25,6 +30,10 @@ function normalizeReelRow(row: ReelRow): Reel {
     textRegionY: row.textRegionY,
     textRegionW: row.textRegionW,
     textRegionH: row.textRegionH,
+    detectedRegions: parseDetectedRegions(row.detectedRegions ?? null),
+    publishTitle: row.publishTitle,
+    publishDescription: row.publishDescription,
+    publishHashtags: row.publishHashtags,
     originalVideo: row.originalVideo,
     processedVideo: row.processedVideo,
     thumbnail: row.thumbnail,
@@ -45,19 +54,22 @@ export function getReelDirectory(reelId: string): string {
 }
 
 export function listReels(status?: string): Reel[] {
-  let query = db.select().from(reelsTable).orderBy(desc(reelsTable.createdAt));
-
   if (status) {
-    const rows = db
+    return db
       .select()
       .from(reelsTable)
       .where(eq(reelsTable.status, status))
       .orderBy(desc(reelsTable.createdAt))
-      .all();
-    return rows.map(normalizeReelRow);
+      .all()
+      .map(normalizeReelRow);
   }
 
-  return query.all().map(normalizeReelRow);
+  return db
+    .select()
+    .from(reelsTable)
+    .orderBy(desc(reelsTable.createdAt))
+    .all()
+    .map(normalizeReelRow);
 }
 
 export function getReelById(id: string): Reel | null {
@@ -103,6 +115,10 @@ export function createReel(input: CreateReelInput): Reel {
     textRegionY: null,
     textRegionW: null,
     textRegionH: null,
+    detectedRegions: null,
+    publishTitle: null,
+    publishDescription: null,
+    publishHashtags: null,
     originalVideo: null,
     processedVideo: null,
     thumbnail: null,
