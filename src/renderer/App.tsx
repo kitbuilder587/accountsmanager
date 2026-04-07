@@ -4,6 +4,9 @@ import { LoginPage } from './components/LoginPage.js';
 import { NavTabs } from './components/NavTabs.js';
 import { ProfilesPage } from './pages/ProfilesPage.js';
 import { ReelsPage } from './pages/ReelsPage.js';
+import { ReadyToPostPage } from './pages/ReadyToPostPage.js';
+import { PublishedPage } from './pages/PublishedPage.js';
+import { SettingsPage } from './pages/SettingsPage.js';
 
 type TabId = 'accounts' | 'pipeline' | 'ready' | 'published' | 'settings';
 
@@ -66,9 +69,9 @@ function App() {
 
       {activeTab === 'accounts' && <ProfilesPage />}
       {activeTab === 'pipeline' && <ReelsPage />}
-      {activeTab === 'ready' && <div className="empty-state"><h2>Ready to Post</h2><p>Coming soon — select reels and accounts for publishing.</p></div>}
-      {activeTab === 'published' && <div className="empty-state"><h2>Published</h2><p>Coming soon — publishing history.</p></div>}
-      {activeTab === 'settings' && <div className="empty-state"><h2>Settings</h2><p>Coming soon — Telegram, AI, OCR, posting rules.</p></div>}
+      {activeTab === 'ready' && <ReadyToPostPage />}
+      {activeTab === 'published' && <PublishedPage />}
+      {activeTab === 'settings' && <SettingsPage />}
     </main>
   );
 }

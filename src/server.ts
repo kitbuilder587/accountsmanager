@@ -6,6 +6,7 @@ import { getAppPaths } from './main/services/app-paths.js';
 import { authRouter, authMiddleware } from './main/middleware/auth.js';
 import { profilesRouter } from './main/routes/profiles.js';
 import { reelsRouter } from './main/routes/reels.js';
+import { publishJobsRouter } from './main/routes/publish-jobs.js';
 import { startTelegramBot } from './main/services/telegram-bot.js';
 
 const app = express();
@@ -20,6 +21,7 @@ app.use('/api/auth', authRouter);
 // Protected API routes
 app.use('/api/profiles', authMiddleware, profilesRouter);
 app.use('/api/reels', authMiddleware, reelsRouter);
+app.use('/api/publish-jobs', authMiddleware, publishJobsRouter);
 
 // Protected media files
 app.use('/media/reels', authMiddleware, express.static(getAppPaths().reelsDir));

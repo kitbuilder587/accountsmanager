@@ -14,6 +14,7 @@ const CREATE_DEFAULTS: ProfileFormValues = {
   platform: 'youtube',
   accountLabel: '',
   note: null,
+  proxy: null,
 };
 
 function sortProfiles(profiles: ManagedProfile[]): ManagedProfile[] {
@@ -95,6 +96,16 @@ export function ProfilesPage() {
     }
   }
 
+  async function handleDeleteProfile(id: string): Promise<void> {
+    await api.deleteProfile(id);
+    setProfiles((current) => current.filter((p) => p.id !== id));
+    setSelectedProfileId((current) => {
+      if (current !== id) return current;
+      const remaining = profiles.filter((p) => p.id !== id);
+      return remaining[0]?.id ?? null;
+    });
+  }
+
   function handleSelectProfile(profileId: string): void {
     setSelectedProfileId(profileId);
     setUpdateError(null);
@@ -125,13 +136,13 @@ export function ProfilesPage() {
       <section className="panel panel--editor" aria-live="polite">
         {!selectedProfile ? (
           <ProfileForm
-            title={profiles.length ? 'Create Profile' : 'Create your first managed profile'}
+            title={profiles.length ? 'Add Account' : 'Add your first account'}
             description={
               profiles.length
-                ? 'Add another managed profile for a YouTube or Instagram account.'
-                : 'Add a YouTube or Instagram profile to reserve its own browser directory and prepare it for isolated launches later.'
+                ? 'Add another managed account for YouTube or Instagram.'
+                : 'Add a YouTube or Instagram account to manage its browser profile, proxy, and publishing.'
             }
-            submitLabel="Create Profile"
+            submitLabel="Create Account"
             initialValues={CREATE_DEFAULTS}
             persistenceError={createError}
             isSaving={isCreating}
@@ -143,12 +154,14 @@ export function ProfilesPage() {
             persistenceError={updateError}
             isSaving={isUpdating}
             onCancel={handleCancelEditing}
+            onDelete={handleDeleteProfile}
             onSubmit={(values) =>
               handleUpdateProfile({
                 id: selectedProfile.id,
                 platform: values.platform,
                 accountLabel: values.accountLabel,
                 note: values.note,
+                proxy: values.proxy,
               })
             }
           />

@@ -67,6 +67,12 @@ function extractToken(req: Request): string | null {
     return authHeader.slice(7);
   }
 
+  // Check query param (for media URLs in img/video src)
+  const queryToken = req.query.token;
+  if (typeof queryToken === 'string' && queryToken) {
+    return queryToken;
+  }
+
   // Check cookie
   const cookies = req.headers.cookie;
   if (cookies) {

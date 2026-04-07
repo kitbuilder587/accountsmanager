@@ -21,6 +21,11 @@ function normalizeProfileRow(row: ManagedProfileRow): ManagedProfile {
     accountLabel: row.accountLabel,
     note: row.note,
     profileDir: row.profileDir,
+    proxy: row.proxy,
+    fingerprint: row.fingerprint,
+    status: row.status,
+    loginStatus: row.loginStatus,
+    avatarUrl: row.avatarUrl,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   });
@@ -40,12 +45,22 @@ export function listProfiles(): ManagedProfile[] {
   return rows.map(normalizeProfileRow);
 }
 
+export function getProfileById(id: string): ManagedProfile | null {
+  const row = db
+    .select()
+    .from(managedProfilesTable)
+    .where(eq(managedProfilesTable.id, id))
+    .get();
+
+  return row ? normalizeProfileRow(row) : null;
+}
+
 export function createProfile(input: CreateManagedProfileInput): ManagedProfile {
   const now = new Date().toISOString();
   const id = randomUUID();
   const profileDir = getProfileDirectory(id);
 
-  fs.mkdirSync(profileDir, { recursive: false });
+  fs.mkdirSync(profileDir, { recursive: true });
 
   try {
     db.insert(managedProfilesTable).values({
@@ -53,7 +68,10 @@ export function createProfile(input: CreateManagedProfileInput): ManagedProfile 
       platform: input.platform,
       accountLabel: input.accountLabel,
       note: input.note ?? null,
+      proxy: input.proxy ?? null,
       profileDir,
+      status: 'active',
+      loginStatus: 'logged_out',
       createdAt: now,
       updatedAt: now,
     }).run();
@@ -68,6 +86,11 @@ export function createProfile(input: CreateManagedProfileInput): ManagedProfile 
     accountLabel: input.accountLabel,
     note: input.note ?? null,
     profileDir,
+    proxy: input.proxy ?? null,
+    fingerprint: null,
+    status: 'active',
+    loginStatus: 'logged_out',
+    avatarUrl: null,
     createdAt: now,
     updatedAt: now,
   });
@@ -91,6 +114,9 @@ export function updateProfile(input: UpdateManagedProfileInput): ManagedProfile 
       platform: input.platform,
       accountLabel: input.accountLabel,
       note: input.note,
+      proxy: input.proxy ?? existingProfile.proxy,
+      status: input.status ?? existingProfile.status,
+      loginStatus: input.loginStatus ?? existingProfile.loginStatus,
       updatedAt,
     })
     .where(eq(managedProfilesTable.id, input.id))
@@ -101,6 +127,22 @@ export function updateProfile(input: UpdateManagedProfileInput): ManagedProfile 
     platform: input.platform,
     accountLabel: input.accountLabel,
     note: input.note,
+    proxy: input.proxy ?? existingProfile.proxy,
+    status: input.status ?? existingProfile.status,
+    loginStatus: input.loginStatus ?? existingProfile.loginStatus,
     updatedAt,
   });
+}
+
+export function deleteProfile(id: string): boolean {
+  const profile = getProfileById(id);
+  if (!profile) return false;
+
+  db.delete(managedProfilesTable).where(eq(managedProfilesTable.id, id)).run();
+
+  if (fs.existsSync(profile.profileDir)) {
+    fs.rmSync(profile.profileDir, { recursive: true, force: true });
+  }
+
+  return true;
 }

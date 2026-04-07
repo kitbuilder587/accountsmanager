@@ -1,5 +1,6 @@
 import type { ManagedProfile, CreateManagedProfileInput, UpdateManagedProfileInput } from '../shared/profile.js';
 import type { Reel, CreateReelInput, PublishReelInput, DetectedRegion } from '../shared/reel.js';
+import type { PublishJob, CreatePublishJobInput, CreateBatchPublishJobsInput } from '../shared/publish-job.js';
 
 const BASE_URL = '/api';
 
@@ -111,5 +112,39 @@ export async function deleteReel(id: string): Promise<{ success: boolean }> {
 }
 
 export function getReelMediaUrl(reelId: string, filename: string): string {
-  return `/media/reels/${reelId}/${filename}`;
+  const token = localStorage.getItem('auth_token');
+  return `/media/reels/${reelId}/${filename}${token ? `?token=${token}` : ''}`;
+}
+
+// Profile extras
+export async function deleteProfile(id: string): Promise<{ success: boolean }> {
+  return fetchJson(`${BASE_URL}/profiles/${id}`, { method: 'DELETE' });
+}
+
+// Publish Jobs API
+export async function listPublishJobs(status?: string): Promise<{ jobs: PublishJob[] }> {
+  const params = status ? `?status=${encodeURIComponent(status)}` : '';
+  return fetchJson(`${BASE_URL}/publish-jobs${params}`);
+}
+
+export async function createPublishJob(input: CreatePublishJobInput): Promise<{ job: PublishJob }> {
+  return fetchJson(`${BASE_URL}/publish-jobs`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export async function createBatchPublishJobs(input: CreateBatchPublishJobsInput): Promise<{ jobs: PublishJob[] }> {
+  return fetchJson(`${BASE_URL}/publish-jobs/batch`, {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
+}
+
+export async function retryPublishJob(id: string): Promise<{ job: PublishJob }> {
+  return fetchJson(`${BASE_URL}/publish-jobs/${id}/retry`, { method: 'POST' });
+}
+
+export async function deletePublishJob(id: string): Promise<{ success: boolean }> {
+  return fetchJson(`${BASE_URL}/publish-jobs/${id}`, { method: 'DELETE' });
 }
