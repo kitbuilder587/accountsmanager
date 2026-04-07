@@ -97,12 +97,19 @@ export function ProfilesPage() {
   }
 
   async function handleDeleteProfile(id: string): Promise<void> {
-    await api.deleteProfile(id);
-    setProfiles((current) => current.filter((p) => p.id !== id));
-    setSelectedProfileId((current) => {
-      if (current !== id) return current;
-      const remaining = profiles.filter((p) => p.id !== id);
-      return remaining[0]?.id ?? null;
+    try {
+      await api.deleteProfile(id);
+    } catch {
+      setUpdateError('Failed to delete profile.');
+      return;
+    }
+    setProfiles((current) => {
+      const remaining = current.filter((p) => p.id !== id);
+      setSelectedProfileId((sel) => {
+        if (sel !== id) return sel;
+        return remaining[0]?.id ?? null;
+      });
+      return remaining;
     });
   }
 

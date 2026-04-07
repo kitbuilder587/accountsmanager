@@ -54,19 +54,22 @@ export function getReelDirectory(reelId: string): string {
 }
 
 export function listReels(status?: string): Reel[] {
-  let query = db.select().from(reelsTable).orderBy(desc(reelsTable.createdAt));
-
   if (status) {
-    const rows = db
+    return db
       .select()
       .from(reelsTable)
       .where(eq(reelsTable.status, status))
       .orderBy(desc(reelsTable.createdAt))
-      .all();
-    return rows.map(normalizeReelRow);
+      .all()
+      .map(normalizeReelRow);
   }
 
-  return query.all().map(normalizeReelRow);
+  return db
+    .select()
+    .from(reelsTable)
+    .orderBy(desc(reelsTable.createdAt))
+    .all()
+    .map(normalizeReelRow);
 }
 
 export function getReelById(id: string): Reel | null {

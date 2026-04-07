@@ -60,7 +60,11 @@ export function ReadyToPostPage() {
     setIsCreating(true);
     setError(null);
     try {
-      const profile = profiles.find(p => p.id === selectedProfileId)!;
+      const profile = profiles.find(p => p.id === selectedProfileId);
+      if (!profile) {
+        setError('Selected account not found');
+        return;
+      }
       const res = await api.createBatchPublishJobs({
         reelIds: Array.from(selectedReelIds),
         profileId: selectedProfileId,
@@ -80,8 +84,12 @@ export function ReadyToPostPage() {
   }
 
   async function handleDeleteJob(jobId: string) {
-    await api.deletePublishJob(jobId);
-    setPendingJobs(prev => prev.filter(j => j.id !== jobId));
+    try {
+      await api.deletePublishJob(jobId);
+      setPendingJobs(prev => prev.filter(j => j.id !== jobId));
+    } catch {
+      setError('Failed to cancel job');
+    }
   }
 
   if (isLoading) return <div className="empty-state"><p>Loading...</p></div>;

@@ -78,7 +78,7 @@ function extractToken(req: Request): string | null {
   if (cookies) {
     const match = cookies.split(';').find(c => c.trim().startsWith('auth_token='));
     if (match) {
-      return match.split('=')[1].trim();
+      return match.split('=').slice(1).join('=').trim();
     }
   }
 

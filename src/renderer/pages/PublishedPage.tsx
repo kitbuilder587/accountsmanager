@@ -11,20 +11,21 @@ export function PublishedPage() {
   const [profiles, setProfiles] = useState<ManagedProfile[]>([]);
   const [filter, setFilter] = useState<FilterStatus>('all');
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
       setIsLoading(true);
+      setError(null);
       try {
         const [jobsRes, profilesRes] = await Promise.all([
           api.listPublishJobs(),
           api.listProfiles(),
         ]);
-        // Show only completed/errored/in-progress jobs
         setJobs(jobsRes.jobs.filter(j => j.status === 'published' || j.status === 'error' || j.status === 'publishing'));
         setProfiles(profilesRes.profiles);
       } catch {
-        // silently fail
+        setError('Failed to load publishing history.');
       } finally {
         setIsLoading(false);
       }
@@ -37,11 +38,12 @@ export function PublishedPage() {
     : jobs.filter(j => j.status === filter);
 
   async function handleRetry(jobId: string) {
+    setError(null);
     try {
       const res = await api.retryPublishJob(jobId);
       setJobs(prev => prev.map(j => j.id === jobId ? res.job : j));
     } catch {
-      // ignore
+      setError('Failed to retry job.');
     }
   }
 
@@ -69,7 +71,9 @@ export function PublishedPage() {
           </div>
         </div>
 
-        {filteredJobs.length === 0 ? (
+        {error && <p className="panel-message panel-message--error">{error}</p>}
+
+        {filteredJobs.length === 0 && !error ? (
           <div className="empty-state">
             <p>{filter === 'all' ? 'No publishing history yet.' : `No ${filter} jobs.`}</p>
           </div>

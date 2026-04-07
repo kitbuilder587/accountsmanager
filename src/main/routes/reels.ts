@@ -1,5 +1,6 @@
 import { Router } from 'express';
 
+import type { ReelStatus } from '../../shared/reel.js';
 import {
   createReelInputSchema,
   updateReelTextSchema,
@@ -74,7 +75,7 @@ router.put('/:id/regions', (req, res) => {
     return;
   }
 
-  updateReelStatus(reel.id, reel.status as any, {
+  updateReelStatus(reel.id, reel.status as ReelStatus, {
     detectedRegions: JSON.stringify(parsed.data.regions),
   });
   res.json({ reel: getReelById(reel.id) });
@@ -88,7 +89,7 @@ router.put('/:id/publish-meta', (req, res) => {
   }
 
   const { title, description, hashtags } = req.body;
-  updateReelStatus(reel.id, reel.status as any, {
+  updateReelStatus(reel.id, reel.status as ReelStatus, {
     publishTitle: title ?? reel.publishTitle,
     publishDescription: description ?? reel.publishDescription,
     publishHashtags: hashtags ?? reel.publishHashtags,
@@ -166,7 +167,7 @@ router.post('/:id/retry', (req, res) => {
   }
 
   const retryFrom = reel.errorStage || 'pending';
-  updateReelStatus(reel.id, retryFrom as any, {
+  updateReelStatus(reel.id, retryFrom as ReelStatus, {
     errorMessage: null,
     errorStage: null,
   });
