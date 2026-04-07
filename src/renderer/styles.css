@@ -278,6 +278,67 @@ button {
   }
 }
 
+/* Login page */
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f5f7fa;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 48px;
+  border-radius: 24px;
+  background: #e6ebf2;
+  max-width: 400px;
+  width: 90%;
+  text-align: center;
+}
+
+.login-form h1 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 600;
+}
+
+.login-form p {
+  margin: 0;
+  color: #4b5563;
+}
+
+.login-input {
+  width: 100%;
+  padding: 14px 18px;
+  border: 1px solid #cbd5e1;
+  border-radius: 16px;
+  background: #f5f7fa;
+  font: inherit;
+  font-size: 16px;
+  text-align: center;
+}
+
+.login-error {
+  margin: 0;
+  color: #dc2626;
+  font-size: 14px;
+}
+
+.login-button {
+  width: 100%;
+}
+
+/* Workspace header row */
+.workspace-header__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
 /* Region editor */
 .region-editor {
   display: flex;

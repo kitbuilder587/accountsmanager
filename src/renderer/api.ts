@@ -3,11 +3,24 @@ import type { Reel, CreateReelInput, PublishReelInput, DetectedRegion } from '..
 
 const BASE_URL = '/api';
 
+function getAuthHeaders(): Record<string, string> {
+  const token = localStorage.getItem('auth_token');
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  return headers;
+}
+
 async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     ...options,
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
+    headers: { ...getAuthHeaders(), ...options?.headers },
   });
+
+  if (response.status === 401) {
+    localStorage.removeItem('auth_token');
+    window.location.reload();
+    throw new Error('Session expired');
+  }
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: response.statusText }));
