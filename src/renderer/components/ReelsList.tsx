@@ -12,6 +12,8 @@ const STATUS_LABELS: Record<string, string> = {
   pending: 'Pending',
   downloading: 'Downloading...',
   ocr: 'Detecting text...',
+  classifying: 'Classifying...',
+  review: 'Awaiting Review',
   generating: 'Generating text...',
   rendering: 'Rendering...',
   ready: 'Ready',
@@ -24,6 +26,8 @@ const STATUS_COLORS: Record<string, string> = {
   pending: '#6b7280',
   downloading: '#2563eb',
   ocr: '#2563eb',
+  classifying: '#2563eb',
+  review: '#d97706',
   generating: '#2563eb',
   rendering: '#2563eb',
   ready: '#059669',
@@ -74,7 +78,7 @@ export function ReelsList({ onSelectReel, selectedReelId, refreshKey }: ReelsLis
       // Check current reels inside the callback to avoid dependency on reels
       setReels(currentReels => {
         const hasProcessing = currentReels.some(r =>
-          ['downloading', 'ocr', 'generating', 'rendering', 'publishing'].includes(r.status)
+          ['downloading', 'ocr', 'classifying', 'generating', 'rendering', 'publishing'].includes(r.status)
         );
         if (hasProcessing) {
           api.listReels(filterStatus || undefined)
@@ -102,6 +106,7 @@ export function ReelsList({ onSelectReel, selectedReelId, refreshKey }: ReelsLis
         >
           <option value="">All</option>
           <option value="pending">Pending</option>
+          <option value="review">Awaiting Review</option>
           <option value="ready">Ready</option>
           <option value="published">Published</option>
           <option value="error">Error</option>
