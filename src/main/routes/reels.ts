@@ -159,7 +159,12 @@ router.post('/:id/publish', (req, res) => {
     return;
   }
 
-  // Start publishing asynchronously
+  // Update status to 'publishing' BEFORE sending response to avoid race condition
+  updateReelStatus(reel.id, 'publishing' as ReelStatus, {
+    publishedProfileId: parsed.data.profileId,
+    publishedPlatform: parsed.data.platform,
+  });
+
   res.json({ reel: getReelById(reel.id), message: 'Publishing started' });
 
   // Run publisher in background (don't await in request handler)

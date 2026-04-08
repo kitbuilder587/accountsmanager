@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { Reel, DetectedRegion } from '../../shared/reel.js';
 import * as api from '../api.js';
 import { VideoPlayer } from './VideoPlayer.js';
@@ -20,6 +20,16 @@ export function ReelEditor({ reel, onReelUpdated }: ReelEditorProps) {
   const [isApproving, setIsApproving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPublish, setShowPublish] = useState(false);
+
+  // Sync state when reel data changes (e.g. after approve, save, pipeline progress)
+  useEffect(() => {
+    setEditText(reel.finalText || '');
+    setPubTitle(reel.publishTitle || '');
+    setPubDescription(reel.publishDescription || '');
+    setPubHashtags(reel.publishHashtags || '');
+    setRegions(reel.detectedRegions || []);
+    setError(null);
+  }, [reel.id, reel.updatedAt, reel.status]);
 
   async function handleSaveText() {
     if (!editText.trim()) return;

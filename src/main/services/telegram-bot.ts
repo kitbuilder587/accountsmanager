@@ -8,6 +8,11 @@ let bot: TelegramBot | null = null;
 const INSTAGRAM_REEL_PATTERN = /https?:\/\/(www\.)?instagram\.com\/(reel|reels|p)\/[\w-]+/i;
 const TIKTOK_PATTERN = /https?:\/\/(www\.)?(tiktok\.com|vm\.tiktok\.com)\/[\w\/@.-]+/i;
 
+function getAppUrl(): string {
+  const port = process.env.PORT || '3001';
+  return process.env.APP_URL || `http://localhost:${port}`;
+}
+
 function extractUrl(text: string): string | null {
   const patterns = [INSTAGRAM_REEL_PATTERN, TIKTOK_PATTERN];
   for (const pattern of patterns) {
@@ -48,7 +53,7 @@ export function startTelegramBot(): void {
   });
 
   bot.onText(/\/status/, async (msg) => {
-    bot?.sendMessage(msg.chat.id, 'Check the admin panel for reel statuses: http://localhost:3001/reels')
+    bot?.sendMessage(msg.chat.id, `Check the admin panel for reel statuses: ${getAppUrl()}/reels`)
       .catch((err) => console.error('[Telegram] Failed to send /status reply:', err.message));
   });
 
@@ -102,7 +107,7 @@ export function notifyReelReady(reelId: string): void {
     `Reel processed and ready!\n` +
     `ID: \`${reel.id}\`\n` +
     `Text: ${reel.finalText || '(no text)'}\n` +
-    `View in admin: http://localhost:3001/reels`,
+    `View in admin: ${getAppUrl()}/reels`,
     { parse_mode: 'Markdown' },
   ).catch((error) => {
     console.error(`[Telegram] Failed to notify about reel ${reelId}:`, error);

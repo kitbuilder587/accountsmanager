@@ -127,7 +127,7 @@ export function ReadyToPostPage() {
                   <div className="ready-reel-item__info">
                     {reel.thumbnail && (
                       <img
-                        src={api.getReelMediaUrl(reel.id, reel.thumbnail)}
+                        src={api.getReelMediaUrl(reel.id, 'thumbnail.jpg')}
                         alt=""
                         className="ready-reel-item__thumb"
                       />

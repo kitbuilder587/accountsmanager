@@ -2,10 +2,44 @@ import { Router, type Request, type Response, type NextFunction } from 'express'
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || '';
-const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
 const TOKEN_EXPIRY = '7d';
+
+/**
+ * Resolve JWT_SECRET: use env var if set, otherwise persist a generated
+ * secret to disk so tokens survive server restarts.
+ */
+function resolveJwtSecret(): string {
+  if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
+
+  // Try to read/write a persistent secret in the app data directory
+  const dataRoot = process.env.ACCOUNTS_MANAGER_APP_DATA_ROOT?.trim() || '.accountsmanager-dev';
+  const secretPath = path.join(dataRoot, '.jwt-secret');
+
+  try {
+    if (fs.existsSync(secretPath)) {
+      const saved = fs.readFileSync(secretPath, 'utf8').trim();
+      if (saved.length >= 32) return saved;
+    }
+  } catch { /* fall through */ }
+
+  const generated = crypto.randomBytes(32).toString('hex');
+
+  try {
+    fs.mkdirSync(dataRoot, { recursive: true });
+    fs.writeFileSync(secretPath, generated, { mode: 0o600 });
+    console.log('[Auth] Generated and persisted JWT secret');
+  } catch {
+    console.warn('[Auth] WARNING: Could not persist JWT secret — tokens will be lost on restart');
+  }
+
+  return generated;
+}
+
+const JWT_SECRET = resolveJwtSecret();
 
 if (!ADMIN_PASSWORD) {
   console.warn('[Auth] WARNING: ADMIN_PASSWORD not set! Set it in .env (20+ chars)');

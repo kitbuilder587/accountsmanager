@@ -85,9 +85,8 @@ export async function processReel(reelId: string, startFrom?: string): Promise<v
               detectedRegions: JSON.stringify(classifiedRegions),
             });
 
-            // Clean up frames
-            const framesDir = (await import('node:path')).dirname(framePath);
-            try { fs.rmSync(framesDir, { recursive: true, force: true }); } catch { /* */ }
+            // NOTE: Do NOT clean up frames here — the review UI needs mid_frame.png
+            // Frames will be cleaned up after rendering completes
           }
 
           // Pause pipeline at review — user approves in admin
@@ -136,6 +135,17 @@ export async function processReel(reelId: string, startFrom?: string): Promise<v
           updateReelStatus(reelId, 'ready', {
             processedVideo: renderResult.videoPath,
           });
+
+          // Clean up frames directory now that rendering is done
+          const reelDir = (await import('./reel-repository.js')).getReelDirectory(reelId);
+          const framesDir = (await import('node:path')).join(reelDir, 'frames');
+          try {
+            const fsMod = await import('node:fs');
+            if (fsMod.existsSync(framesDir)) {
+              fsMod.rmSync(framesDir, { recursive: true, force: true });
+            }
+          } catch { /* ignore */ }
+
           console.log(`[Pipeline] Reel ${reelId} is ready!`);
           notifyReelReady(reelId);
           break;
