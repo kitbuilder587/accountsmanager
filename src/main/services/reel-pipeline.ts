@@ -5,6 +5,7 @@ import { detectText } from './reel-ocr.js';
 import { classifyRegions } from './reel-region-classifier.js';
 import { generateContent } from './reel-text-generator.js';
 import { renderReel } from './reel-renderer.js';
+import { notifyReelReady } from './telegram-bot.js';
 
 type PipelineStage = 'downloading' | 'ocr' | 'classifying' | 'generating' | 'rendering';
 
@@ -136,6 +137,7 @@ export async function processReel(reelId: string, startFrom?: string): Promise<v
             processedVideo: renderResult.videoPath,
           });
           console.log(`[Pipeline] Reel ${reelId} is ready!`);
+          notifyReelReady(reelId);
           break;
         }
       }

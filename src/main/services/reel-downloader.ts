@@ -23,7 +23,7 @@ export async function downloadReel(reelId: string): Promise<DownloadResult> {
   // Download video using yt-dlp
   await execFileAsync('yt-dlp', [
     '-o', videoPath,
-    '--format', 'mp4',
+    '--format', 'best[ext=mp4]/best',
     '--no-playlist',
     '--max-filesize', '100M',
     reel.sourceUrl,

@@ -6,3 +6,6 @@ dist
 *.sqlite-shm
 .env
 .accountsmanager-dev
+.accountsmanager-data
+.debug-render
+.DS_Store
