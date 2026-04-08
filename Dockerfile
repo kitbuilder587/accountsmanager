@@ -5,6 +5,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     fonts-noto \
     python3-pip \
+    python3 \
+    make \
+    g++ \
     tesseract-ocr \
     tesseract-ocr-rus \
     tesseract-ocr-eng \
