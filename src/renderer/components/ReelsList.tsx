@@ -70,20 +70,23 @@ export function ReelsList({ onSelectReel, selectedReelId, refreshKey }: ReelsLis
 
   // Auto-refresh for processing reels
   useEffect(() => {
-    const hasProcessing = reels.some(r =>
-      ['downloading', 'ocr', 'generating', 'rendering', 'publishing'].includes(r.status)
-    );
-    if (!hasProcessing) return;
-
     const timer = setInterval(async () => {
-      try {
-        const response = await api.listReels(filterStatus || undefined);
-        setReels(response.reels);
-      } catch { /* ignore */ }
+      // Check current reels inside the callback to avoid dependency on reels
+      setReels(currentReels => {
+        const hasProcessing = currentReels.some(r =>
+          ['downloading', 'ocr', 'generating', 'rendering', 'publishing'].includes(r.status)
+        );
+        if (hasProcessing) {
+          api.listReels(filterStatus || undefined)
+            .then(response => setReels(response.reels))
+            .catch(() => { /* ignore */ });
+        }
+        return currentReels;
+      });
     }, 3000);
 
     return () => clearInterval(timer);
-  }, [reels, filterStatus]);
+  }, [filterStatus]);
 
   return (
     <section className="panel panel--list">

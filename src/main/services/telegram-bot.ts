@@ -39,17 +39,17 @@ export function startTelegramBot(): void {
   });
 
   bot.onText(/\/start/, (msg) => {
-    bot!.sendMessage(msg.chat.id,
+    bot?.sendMessage(msg.chat.id,
       'Send me an Instagram Reel or TikTok link and I will repackage it with Russian text and CheapGPT.ru branding.\n\n' +
       'You can also add custom text after the link:\n' +
       '`https://instagram.com/reel/abc123 Your custom text here`',
       { parse_mode: 'Markdown' },
-    );
+    ).catch((err) => console.error('[Telegram] Failed to send /start reply:', err.message));
   });
 
   bot.onText(/\/status/, async (msg) => {
-    // Show recent reels status
-    bot!.sendMessage(msg.chat.id, 'Check the admin panel for reel statuses: http://localhost:3001/reels');
+    bot?.sendMessage(msg.chat.id, 'Check the admin panel for reel statuses: http://localhost:3001/reels')
+      .catch((err) => console.error('[Telegram] Failed to send /status reply:', err.message));
   });
 
   bot.on('message', async (msg) => {
@@ -59,7 +59,7 @@ export function startTelegramBot(): void {
     const url = extractUrl(msg.text);
 
     if (!url) {
-      await bot!.sendMessage(chatId, 'Please send a valid Instagram Reel or TikTok link.');
+      await bot?.sendMessage(chatId, 'Please send a valid Instagram Reel or TikTok link.');
       return;
     }
 
@@ -73,7 +73,7 @@ export function startTelegramBot(): void {
         telegramMessageId: String(msg.message_id),
       });
 
-      await bot!.sendMessage(chatId,
+      await bot?.sendMessage(chatId,
         `Reel queued for processing!\n` +
         `ID: \`${reel.id}\`\n` +
         `Status: ${reel.status}\n` +
@@ -84,7 +84,7 @@ export function startTelegramBot(): void {
       enqueueReel(reel.id);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
-      await bot!.sendMessage(chatId, `Failed to queue reel: ${message}`);
+      await bot?.sendMessage(chatId, `Failed to queue reel: ${message}`);
     }
   });
 

@@ -89,6 +89,7 @@ function extractToken(req: Request): string | null {
 function authMiddleware(req: Request, res: Response, next: NextFunction): void {
   // Skip auth if no password is configured (dev mode)
   if (!passwordHash) {
+    console.warn('[Auth] No ADMIN_PASSWORD set — all routes are unprotected (dev mode)');
     next();
     return;
   }

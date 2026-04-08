@@ -53,7 +53,13 @@ router.put('/:id', (req, res) => {
     const profile = updateProfile(parsed.data);
     res.json({ profile });
   } catch (error) {
-    res.status(404).json({ error: 'Profile not found' });
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    if (message.includes('not found')) {
+      res.status(404).json({ error: 'Profile not found' });
+    } else {
+      console.error('[Profiles] Update error:', message);
+      res.status(500).json({ error: 'Failed to update profile' });
+    }
   }
 });
 

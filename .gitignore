@@ -5,3 +5,6 @@ VIDS/
 .accountsmanager-dev/
 .accountsmanager-data/
 .debug-render/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm

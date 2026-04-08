@@ -65,7 +65,7 @@ export async function generateContent(originalText: string): Promise<GeneratedCo
   }
 
   try {
-    const jsonStr = content.replace(/^```json?\n?/m, '').replace(/\n?```$/m, '');
+    const jsonStr = content.replace(/^```json?\n?/, '').replace(/\n?```$/, '');
     const parsed = JSON.parse(jsonStr);
 
     return {

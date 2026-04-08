@@ -69,7 +69,7 @@ export function ReadyToPostPage() {
         reelIds: Array.from(selectedReelIds),
         profileId: selectedProfileId,
         platform: profile.platform,
-        scheduledAt: scheduledAt || null,
+        scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : null,
       });
       setPendingJobs(prev => [...res.jobs, ...prev]);
       setSelectedReelIds(new Set());

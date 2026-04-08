@@ -18,8 +18,8 @@ interface VideoInfo {
   height: number;
 }
 
-const WATERMARK_LOGO_PATH = path.resolve('watermarks/Screenshot 2026-03-30 at 11.34.20.png');
-const WATERMARK_BANNER_PATH = path.resolve('watermarks/Screenshot 2026-03-30 at 11.32.21.png');
+const WATERMARK_LOGO_PATH = path.join(path.dirname(new URL(import.meta.url).pathname), '../../../watermarks/Screenshot 2026-03-30 at 11.34.20.png');
+const WATERMARK_BANNER_PATH = path.join(path.dirname(new URL(import.meta.url).pathname), '../../../watermarks/Screenshot 2026-03-30 at 11.32.21.png');
 
 async function getVideoInfo(videoPath: string): Promise<VideoInfo> {
   const { stdout } = await execFileAsync('ffprobe', [
@@ -205,7 +205,10 @@ export async function renderReel(reelId: string): Promise<RenderResult> {
   const outputPath = path.join(reelDir, 'processed.mp4');
 
   const videoInfo = await getVideoInfo(reel.originalVideo);
-  const regions = reel.detectedRegions || [];
+  const rawRegions = reel.detectedRegions;
+  const regions: DetectedRegion[] = Array.isArray(rawRegions)
+    ? rawRegions
+    : (typeof rawRegions === 'string' ? (() => { try { return JSON.parse(rawRegions); } catch { return []; } })() : []);
 
   const overlayPath = await createFullFrameOverlay(
     reel.finalText,
@@ -217,12 +220,14 @@ export async function renderReel(reelId: string): Promise<RenderResult> {
   const ffmpegArgs: string[] = [
     '-i', reel.originalVideo,
     '-loop', '1', '-i', overlayPath,
-    '-filter_complex', '[0:v][1:v]overlay=0:0:shortest=1',
+    '-filter_complex', '[0:v][1:v]overlay=0:0',
     '-c:v', 'libx264',
     '-preset', 'fast',
     '-crf', '23',
     '-pix_fmt', 'yuv420p',
+    '-map', '0:a?',
     '-c:a', 'copy',
+    '-shortest',
     '-movflags', '+faststart',
     '-y',
     outputPath,
