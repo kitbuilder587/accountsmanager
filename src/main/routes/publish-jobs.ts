@@ -22,6 +22,11 @@ router.get('/', (req, res) => {
   res.json({ jobs });
 });
 
+router.get('/reel/:reelId', (req, res) => {
+  const jobs = getPublishJobsByReelId(req.params.reelId);
+  res.json({ jobs });
+});
+
 router.get('/:id', (req, res) => {
   const job = getPublishJobById(req.params.id);
   if (!job) {
@@ -29,11 +34,6 @@ router.get('/:id', (req, res) => {
     return;
   }
   res.json({ job });
-});
-
-router.get('/reel/:reelId', (req, res) => {
-  const jobs = getPublishJobsByReelId(req.params.reelId);
-  res.json({ jobs });
 });
 
 router.post('/', (req, res) => {

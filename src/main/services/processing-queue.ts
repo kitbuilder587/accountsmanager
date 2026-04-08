@@ -15,8 +15,8 @@ export function enqueueReel(reelId: string, startFrom?: string): void {
 
 async function processNext(): Promise<void> {
   if (isProcessing || queue.length === 0) return;
-
   isProcessing = true;
+
   const item = queue.shift()!;
 
   try {

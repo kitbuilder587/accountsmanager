@@ -1,3 +1,4 @@
+import type { DetectedRegion } from '../../shared/reel.js';
 import { getReelById, updateReelStatus, updateReelError } from './reel-repository.js';
 import { downloadReel } from './reel-downloader.js';
 import { detectText } from './reel-ocr.js';
@@ -58,9 +59,12 @@ export async function processReel(reelId: string, startFrom?: string): Promise<v
 
         case 'classifying': {
           const currentReel = getReelById(reelId)!;
-          const regions = currentReel.detectedRegions || [];
+          const rawRegions = currentReel.detectedRegions;
+          const regions: DetectedRegion[] = Array.isArray(rawRegions)
+            ? rawRegions
+            : (typeof rawRegions === 'string' ? (() => { try { return JSON.parse(rawRegions); } catch { return []; } })() : []);
 
-          if (regions.length > 0 && regions.some(r => r.w > 0)) {
+          if (regions.length > 0 && regions.some((r: DetectedRegion) => r.w > 0)) {
             updateReelStatus(reelId, 'classifying');
             console.log(`[Pipeline] Classifying ${regions.length} text regions for reel ${reelId}...`);
 
@@ -95,8 +99,12 @@ export async function processReel(reelId: string, startFrom?: string): Promise<v
           const currentReel = getReelById(reelId)!;
 
           // Find the "replace" region text
-          const replaceRegions = (currentReel.detectedRegions || []).filter(r => r.action === 'replace');
-          const replaceText = replaceRegions.map(r => r.text).join('\n');
+          const rawGenRegions = currentReel.detectedRegions;
+          const genRegions: DetectedRegion[] = Array.isArray(rawGenRegions)
+            ? rawGenRegions
+            : (typeof rawGenRegions === 'string' ? (() => { try { return JSON.parse(rawGenRegions); } catch { return []; } })() : []);
+          const replaceRegions = genRegions.filter((r: DetectedRegion) => r.action === 'replace');
+          const replaceText = replaceRegions.map((r: DetectedRegion) => r.text).join('\n');
 
           const sourceText = currentReel.customText || replaceText || currentReel.originalText;
 

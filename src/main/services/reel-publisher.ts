@@ -35,7 +35,7 @@ async function uploadToYouTube(
   page.setDefaultTimeout(60_000);
 
   try {
-    const uploadURL = 'https://studio.youtube.com/channel/UC/videos/upload?d=ud';
+    const uploadURL = 'https://studio.youtube.com';
     await page.goto(uploadURL);
     await page.waitForLoadState('networkidle');
 
@@ -66,7 +66,7 @@ async function uploadToYouTube(
     const titleInput = page.locator('#textbox[aria-label*="title"], div#title-input #textbox').first();
     await titleInput.click();
     await page.keyboard.press('Control+A');
-    await page.keyboard.press('Delete');
+    await page.keyboard.press('Backspace');
     await page.keyboard.type(title, { delay: 30 });
 
     // Set description
@@ -100,11 +100,16 @@ async function uploadToYouTube(
     await doneButton.waitFor({ state: 'visible' });
 
     // Wait until upload processing completes (button not disabled)
+    let uploadComplete = false;
     for (let i = 0; i < 60; i++) {
       const disabled = await doneButton.getAttribute('disabled');
-      if (disabled === null) break;
+      if (disabled === null) { uploadComplete = true; break; }
       console.log('[YouTube] Waiting for upload to complete...');
       await page.waitForTimeout(3000);
+    }
+
+    if (!uploadComplete) {
+      throw new Error('YouTube upload timed out after 3 minutes');
     }
 
     await doneButton.click();

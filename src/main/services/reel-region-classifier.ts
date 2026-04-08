@@ -35,7 +35,7 @@ export async function classifyRegions(
 ): Promise<DetectedRegion[]> {
   if (!OPENROUTER_API_KEY) {
     console.warn('[Classifier] OPENROUTER_API_KEY not set, defaulting all to mask');
-    return regions;
+    return regions.map(r => ({ ...r, action: 'mask' as RegionAction }));
   }
 
   if (regions.length === 0) return regions;
@@ -103,7 +103,7 @@ export async function classifyRegions(
   // Parse JSON from response (handle markdown code blocks)
   let results: ClassifierResult[];
   try {
-    const jsonStr = content.replace(/^```json?\n?/m, '').replace(/\n?```$/m, '');
+    const jsonStr = content.replace(/^```json?\n?/, '').replace(/\n?```$/, '');
     results = JSON.parse(jsonStr);
   } catch (err) {
     console.warn('[Classifier] Failed to parse response:', content);

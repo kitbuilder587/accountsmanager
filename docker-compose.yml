@@ -8,7 +8,7 @@ services:
     environment:
       - ACCOUNTS_MANAGER_APP_DATA_ROOT=/data
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env (20+ chars)}
-      - JWT_SECRET=${JWT_SECRET:-}
+      - JWT_SECRET=${JWT_SECRET:?Set JWT_SECRET in .env (random 32+ char string)}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
       - PADDLEOCR_URL=http://paddleocr:8866

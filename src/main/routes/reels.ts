@@ -89,6 +89,15 @@ router.put('/:id/publish-meta', (req, res) => {
   }
 
   const { title, description, hashtags } = req.body;
+  if (
+    (title !== undefined && typeof title !== 'string') ||
+    (description !== undefined && typeof description !== 'string') ||
+    (hashtags !== undefined && typeof hashtags !== 'string')
+  ) {
+    res.status(400).json({ error: 'Invalid input: title, description, and hashtags must be strings' });
+    return;
+  }
+
   updateReelStatus(reel.id, reel.status as ReelStatus, {
     publishTitle: title ?? reel.publishTitle,
     publishDescription: description ?? reel.publishDescription,
@@ -119,6 +128,11 @@ router.post('/:id/rerender', (req, res) => {
   const reel = getReelById(req.params.id);
   if (!reel) {
     res.status(404).json({ error: 'Reel not found' });
+    return;
+  }
+
+  if (reel.status !== 'ready' && reel.status !== 'review') {
+    res.status(400).json({ error: 'Reel must be in ready or review state to rerender' });
     return;
   }
 

@@ -82,7 +82,7 @@ export function ReelsPage() {
 
       <section className="panel panel--editor" aria-live="polite">
         {selectedReel ? (
-          <ReelEditor reel={selectedReel} onReelUpdated={handleReelUpdated} />
+          <ReelEditor key={selectedReel.id} reel={selectedReel} onReelUpdated={handleReelUpdated} />
         ) : (
           <div className="empty-state">
             <h2>Select a reel</h2>
