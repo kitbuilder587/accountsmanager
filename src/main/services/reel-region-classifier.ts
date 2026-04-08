@@ -50,7 +50,7 @@ export async function classifyRegions(
 
   // Read frame image as base64
   const imageBase64 = fs.readFileSync(framePath).toString('base64');
-  const mimeType = framePath.endsWith('.jpg') ? 'image/jpeg' : 'image/png';
+  const mimeType = (framePath.endsWith('.jpg') || framePath.endsWith('.jpeg')) ? 'image/jpeg' : 'image/png';
 
   const messages = [
     { role: 'system', content: SYSTEM_PROMPT },

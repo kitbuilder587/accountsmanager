@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     tesseract-ocr-rus \
     tesseract-ocr-eng \
     curl \
-    && pip3 install --break-system-packages yt-dlp \
+    && pip3 install --break-system-packages yt-dlp instagrapi \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 

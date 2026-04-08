@@ -18,8 +18,8 @@ interface VideoInfo {
   height: number;
 }
 
-const WATERMARK_LOGO_PATH = path.join(path.dirname(new URL(import.meta.url).pathname), '../../../watermarks/Screenshot 2026-03-30 at 11.34.20.png');
-const WATERMARK_BANNER_PATH = path.join(path.dirname(new URL(import.meta.url).pathname), '../../../watermarks/Screenshot 2026-03-30 at 11.32.21.png');
+const WATERMARK_LOGO_PATH = path.resolve('watermarks/watermark-logo.png');
+const WATERMARK_BANNER_PATH = path.resolve('watermarks/watermark-banner.png');
 
 async function getVideoInfo(videoPath: string): Promise<VideoInfo> {
   const { stdout } = await execFileAsync('ffprobe', [
