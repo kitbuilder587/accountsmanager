@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import type { DetectedRegion, RegionAction } from '../../shared/reel.js';
 import { getReelMediaUrl } from '../api.js';
 
@@ -22,7 +22,15 @@ const ACTION_LABELS: Record<RegionAction, string> = {
 
 export function RegionEditor({ reelId, regions, onRegionsChange }: RegionEditorProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [frameDimensions, setFrameDimensions] = useState({ width: 720, height: 1280 });
   const frameUrl = getReelMediaUrl(reelId, 'frames/mid_frame.png');
+
+  const handleFrameLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget;
+    if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+      setFrameDimensions({ width: img.naturalWidth, height: img.naturalHeight });
+    }
+  }, []);
 
   function handleActionChange(regionId: string, action: RegionAction) {
     onRegionsChange(
@@ -37,13 +45,14 @@ export function RegionEditor({ reelId, regions, onRegionsChange }: RegionEditorP
           src={frameUrl}
           alt="Video frame"
           className="region-editor__frame"
+          onLoad={handleFrameLoad}
           onError={(e) => {
             // Fallback to thumbnail if mid_frame not available
             (e.target as HTMLImageElement).src = getReelMediaUrl(reelId, 'thumbnail.jpg');
           }}
         />
         {/* Overlay bounding boxes */}
-        <svg className="region-editor__overlay" viewBox="0 0 720 1280" preserveAspectRatio="none">
+        <svg className="region-editor__overlay" viewBox={`0 0 ${frameDimensions.width} ${frameDimensions.height}`} preserveAspectRatio="none">
           {regions.filter(r => r.w > 0).map(region => (
             <g key={region.id} onClick={() => setSelectedId(region.id)} style={{ cursor: 'pointer' }}>
               <rect

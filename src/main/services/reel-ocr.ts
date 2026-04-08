@@ -107,7 +107,6 @@ export async function detectText(reelId: string): Promise<OcrResult> {
 
   try {
     const regions = await callPaddleOcr(framePath);
-    const allText = regions.map(r => r.text).join('\n');
     return { regions, framePath };
   } catch (error) {
     console.warn(`[OCR] PaddleOCR unavailable, falling back to Tesseract:`, error);

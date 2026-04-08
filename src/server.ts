@@ -8,6 +8,8 @@ import { profilesRouter } from './main/routes/profiles.js';
 import { reelsRouter } from './main/routes/reels.js';
 import { publishJobsRouter } from './main/routes/publish-jobs.js';
 import { startTelegramBot } from './main/services/telegram-bot.js';
+import { startPublishScheduler } from './main/services/publish-scheduler.js';
+import { recoverStuckReels } from './main/services/processing-queue.js';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3001', 10);
@@ -36,6 +38,12 @@ app.get('/{*path}', (_req, res) => {
 app.listen(PORT, () => {
   console.log(`Accounts Manager running on http://localhost:${PORT}`);
 });
+
+// Recover reels stuck in processing states from previous run
+recoverStuckReels();
+
+// Start publish job scheduler
+startPublishScheduler();
 
 // Start Telegram bot if token is configured
 if (process.env.TELEGRAM_BOT_TOKEN) {
